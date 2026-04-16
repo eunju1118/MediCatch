@@ -1,0 +1,67 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # Health Service
+        - id: health-service
+          uri: lb://health-service
+          predicates:
+            - Path=/api/health/**
+          filters:
+            - StripPrefix=2
+            - name: JwtAuthFilter
+
+        # Insurance Service
+        - id: insurance-service
+          uri: lb://insurance-service
+          predicates:
+            - Path=/api/insurance/**
+          filters:
+            - StripPrefix=2
+            - name: JwtAuthFilter
+
+        # Chat Service
+        - id: chat-service
+          uri: lb://chat-service
+          predicates:
+            - Path=/api/chat/**
+          filters:
+            - StripPrefix=2
+            - name: JwtAuthFilter
+
+        # Auth (공개 엔드포인트 - JWT 필터 없음)
+        - id: auth-public
+          uri: lb://health-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=2
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:medicatch-secret-key-must-be-at-least-256-bits-long}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

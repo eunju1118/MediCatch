@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # ── Infrastructure ──────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: medicatch-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_USER: medicatch
+      MYSQL_PASSWORD: medicatch1234
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Service Discovery ───────────────────────────────
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: medicatch-eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── API Gateway ─────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: medicatch-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-medicatch-secret-key-must-be-at-least-256-bits-long}
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+
+  # ── Health Service ──────────────────────────────────
+  health-service:
+    build:
+      context: ./health-service
+      dockerfile: Dockerfile
+    container_name: medicatch-health
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URL=jdbc:mysql://mysql:3306/medicatch_health?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      - DB_USERNAME=medicatch
+      - DB_PASSWORD=medicatch1234
+      - CODEF_CLIENT_ID=${CODEF_CLIENT_ID}
+      - CODEF_CLIENT_SECRET=${CODEF_CLIENT_SECRET}
+      - CODEF_PUBLIC_KEY=${CODEF_PUBLIC_KEY}
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  # ── Insurance Service ────────────────────────────────
+  insurance-service:
+    build:
+      context: ./insurance-service
+      dockerfile: Dockerfile
+    container_name: medicatch-insurance
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_URL=jdbc:mysql://mysql:3306/medicatch_insurance?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      - DB_USERNAME=medicatch
+      - DB_PASSWORD=medicatch1234
+      - CODEF_CLIENT_ID=${CODEF_CLIENT_ID}
+      - CODEF_CLIENT_SECRET=${CODEF_CLIENT_SECRET}
+      - CODEF_PUBLIC_KEY=${CODEF_PUBLIC_KEY}
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  # ── Chat Service ─────────────────────────────────────
+  chat-service:
+    build:
+      context: ./chat-service
+      dockerfile: Dockerfile
+    container_name: medicatch-chat
+    ports:
+      - "8085:8085"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+
+  # ── Frontend ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medicatch-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  mysql_data:

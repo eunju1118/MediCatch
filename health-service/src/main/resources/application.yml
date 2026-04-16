@@ -1,0 +1,42 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: health-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/medicatch_health?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:medicatch}
+    password: ${DB_PASSWORD:medicatch1234}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# CODEF API 설정
+codef:
+  client-id: ${CODEF_CLIENT_ID:demo_client_id}
+  client-secret: ${CODEF_CLIENT_SECRET:demo_client_secret}
+  public-key: ${CODEF_PUBLIC_KEY:demo_public_key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+logging:
+  level:
+    com.medicatch.health: DEBUG
