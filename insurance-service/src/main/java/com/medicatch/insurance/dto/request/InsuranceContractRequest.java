@@ -13,10 +13,13 @@ import lombok.Setter;
 public class InsuranceContractRequest {
 
     @NotBlank
-    private String id;              // 내보험다보여 로그인 ID
+    private String id;               // 내보험다보여 로그인 ID
 
     @NotBlank
-    private String password;        // RSA 암호화 비밀번호
+    private String password;         // RSA 암호화 전 비밀번호
+
+    @NotBlank
+    private String identity;         // 주민번호 13자리 (RSA 암호화 후 전송)
 
     /**
      * 보험 유형
@@ -31,7 +34,7 @@ public class InsuranceContractRequest {
     @NotBlank
     private String phoneNo;
 
-    private String telecom = "0";
+    private String telecom = "0";    // 0=SKT, 1=KT, 2=LGU+
 
-    private String authMethod = "0";
+    private String authMethod = "0"; // 0=SMS, 1=PASS앱
 }
