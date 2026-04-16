@@ -30,6 +30,7 @@ codef:
   client-id: ${CODEF_CLIENT_ID:demo_client_id}
   client-secret: ${CODEF_CLIENT_SECRET:demo_client_secret}
   public-key: ${CODEF_PUBLIC_KEY:demo_public_key}
+  mode: ${CODEF_MODE:DEMO}   # DEMO | REAL
 
 management:
   endpoints:
