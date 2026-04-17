@@ -9,10 +9,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 
 /**
  * 내 진료정보 열람 컨트롤러
@@ -100,10 +98,11 @@ public class MedicalInfoController {
      */
     @PostMapping("/info")
     public ResponseEntity<ApiResponse<MedicalInfoResult>> requestInfo(
-            @Valid @RequestBody MedicalInfoRequest request) {
+            @Valid @RequestBody MedicalInfoRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
 
-        log.debug("진료정보 열람 1차 요청 수신: user={}", request.getUserName());
-        MedicalInfoResult result = medicalInfoService.requestInfo(request);
+        log.debug("진료정보 열람 1차 요청 수신: user={}, userId={}", request.getUserName(), userId);
+        MedicalInfoResult result = medicalInfoService.requestInfo(request, userId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -130,10 +129,11 @@ public class MedicalInfoController {
      */
     @PostMapping("/info/certify")
     public ResponseEntity<ApiResponse<MedicalInfoResult>> certify(
-            @Valid @RequestBody MedicalInfoCertifyRequest request) {
+            @Valid @RequestBody MedicalInfoCertifyRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
 
-        log.debug("진료정보 열람 2차 인증 수신: jti={}", request.getJti());
-        MedicalInfoResult result = medicalInfoService.certifyAndFetch(request);
+        log.debug("진료정보 열람 2차 인증 수신: jti={}, userId={}", request.getJti(), userId);
+        MedicalInfoResult result = medicalInfoService.certifyAndFetch(request, userId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

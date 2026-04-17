@@ -4,23 +4,48 @@ server:
 spring:
   application:
     name: chat-service
+  # 두 스타터(web + webflux) 공존 → 서블릿 모드 고정 (SseEmitter + Feign 사용)
+  main:
+    web-application-type: servlet
 
+# ── OpenAI ──────────────────────────────────────────────────────────────────
+openai:
+  api-key: ${OPENAI_API_KEY:your-openai-api-key}
+  model: gpt-4o
+  max-tokens: 1500
+  temperature: 0.7
+  timeout-seconds: 60
+
+# ── Eureka ──────────────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 5
   instance:
     prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
 
-openai:
-  api-key: ${OPENAI_API_KEY:your-openai-api-key}
+# ── Feign ───────────────────────────────────────────────────────────────────
+feign:
+  client:
+    config:
+      health-service:
+        connect-timeout: 3000
+        read-timeout: 10000
+        logger-level: basic
 
+# ── Actuator ────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
         include: health, info
 
+# ── Logging ─────────────────────────────────────────────────────────────────
 logging:
   level:
     com.medicatch.chat: DEBUG
+    feign: DEBUG
