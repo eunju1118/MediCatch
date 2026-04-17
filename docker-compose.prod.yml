@@ -1,0 +1,181 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Medicatch — 운영 환경 docker compose
+#
+# 사용법:
+#   IMAGE_TAG=abc1234 DOCKER_USERNAME=yourhub docker compose \
+#     -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# 필수 환경 변수 (.env.prod 에 정의):
+#   DOCKER_USERNAME   — Docker Hub 사용자명
+#   IMAGE_TAG         — 배포할 이미지 태그 (default: latest)
+#   JWT_SECRET        — API Gateway JWT 서명 키
+#   DB_USERNAME / DB_PASSWORD
+#   CODEF_CLIENT_ID / CODEF_CLIENT_SECRET / CODEF_PUBLIC_KEY
+#   OPENAI_API_KEY
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common: &common
+  restart: unless-stopped
+  networks:
+    - medicatch-network
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ── MySQL ──────────────────────────────────────────────────────────────────
+  mysql:
+    <<: *common
+    image: mysql:8.0
+    container_name: medicatch-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root1234}
+      MYSQL_USER:          ${DB_USERNAME:-medicatch}
+      MYSQL_PASSWORD:      ${DB_PASSWORD:-medicatch1234}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "${DB_USERNAME:-medicatch}", "-p${DB_PASSWORD:-medicatch1234}"]
+      interval: 10s
+      timeout:  5s
+      retries:  10
+
+  # ── Eureka Server ──────────────────────────────────────────────────────────
+  eureka-server:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-eureka-server:${IMAGE_TAG:-latest}
+    container_name: medicatch-eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout:  5s
+      start_period: 60s
+      retries:  5
+
+  # ── API Gateway ────────────────────────────────────────────────────────────
+  api-gateway:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-api-gateway:${IMAGE_TAG:-latest}
+    container_name: medicatch-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET:  ${JWT_SECRET}
+      EUREKA_URL:  http://medicatch-eureka:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout:  5s
+      start_period: 60s
+      retries:  5
+
+  # ── Health Service ─────────────────────────────────────────────────────────
+  health-service:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-health-service:${IMAGE_TAG:-latest}
+    container_name: medicatch-health
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL:               jdbc:mysql://mysql:3306/medicatch_health?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      DB_USERNAME:          ${DB_USERNAME}
+      DB_PASSWORD:          ${DB_PASSWORD}
+      CODEF_CLIENT_ID:      ${CODEF_CLIENT_ID}
+      CODEF_CLIENT_SECRET:  ${CODEF_CLIENT_SECRET}
+      CODEF_PUBLIC_KEY:     ${CODEF_PUBLIC_KEY}
+      CODEF_MODE:           ${CODEF_MODE:-REAL}
+      OPENAI_API_KEY:       ${OPENAI_API_KEY}
+      EUREKA_URL:           http://medicatch-eureka:8761/eureka/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout:  5s
+      start_period: 90s
+      retries:  5
+
+  # ── Insurance Service ──────────────────────────────────────────────────────
+  insurance-service:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-insurance-service:${IMAGE_TAG:-latest}
+    container_name: medicatch-insurance
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL:               jdbc:mysql://mysql:3306/medicatch_insurance?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      DB_USERNAME:          ${DB_USERNAME}
+      DB_PASSWORD:          ${DB_PASSWORD}
+      CODEF_CLIENT_ID:      ${CODEF_CLIENT_ID}
+      CODEF_CLIENT_SECRET:  ${CODEF_CLIENT_SECRET}
+      CODEF_PUBLIC_KEY:     ${CODEF_PUBLIC_KEY}
+      CODEF_MODE:           ${CODEF_MODE:-REAL}
+      OPENAI_API_KEY:       ${OPENAI_API_KEY}
+      EUREKA_URL:           http://medicatch-eureka:8761/eureka/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout:  5s
+      start_period: 90s
+      retries:  5
+
+  # ── Chat Service ───────────────────────────────────────────────────────────
+  chat-service:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-chat-service:${IMAGE_TAG:-latest}
+    container_name: medicatch-chat
+    ports:
+      - "8085:8085"
+    environment:
+      OPENAI_API_KEY:  ${OPENAI_API_KEY}
+      EUREKA_URL:      http://medicatch-eureka:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      interval: 15s
+      timeout:  5s
+      start_period: 90s
+      retries:  5
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    <<: *common
+    image: ${DOCKER_USERNAME}/medicatch-frontend:${IMAGE_TAG:-latest}
+    container_name: medicatch-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 15s
+      timeout:  5s
+      start_period: 15s
+      retries:  3
+
+networks:
+  medicatch-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

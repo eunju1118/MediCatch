@@ -1,0 +1,25 @@
+# VCS
+.git
+.github
+.gitignore
+
+# Build outputs (각 서비스의 target/ 은 Docker build context 에서 제외)
+**/target/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+**/.DS_Store
+*.log
+
+# Docs / scripts
+*.md
+docs/
+
+# CI/CD files (not needed inside image)
+Jenkinsfile
+docker-compose*.yml

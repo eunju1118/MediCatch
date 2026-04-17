@@ -1,0 +1,185 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_PREFIX: ${{ secrets.DOCKER_USERNAME }}/medicatch
+
+# PR과 push가 동시에 실행되는 경우 이전 실행 취소
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Job 1: Java 서비스 테스트 (병렬)
+# ──────────────────────────────────────────────────────────────────────────────
+jobs:
+  test-java:
+    name: Test / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - eureka-server
+          - api-gateway
+          - health-service
+          - insurance-service
+          - chat-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Run tests — ${{ matrix.service }}
+        run: mvn test -pl ${{ matrix.service }} -B -q
+        env:
+          # 테스트 중 실제 외부 API 호출 방지
+          CODEF_MODE: DEMO
+          OPENAI_API_KEY: test-key
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 2: Frontend 린트 (PR/push 공통)
+  # ──────────────────────────────────────────────────────────────────────────────
+  test-frontend:
+    name: Test / frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build (smoke test)
+        working-directory: frontend
+        run: npm run build
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 3: Docker 이미지 빌드 & Docker Hub Push (main 브랜치 push 시만)
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [ test-java, test-frontend ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: eureka-server
+            context: .
+            dockerfile: eureka-server/Dockerfile
+            image: medicatch-eureka-server
+
+          - service: api-gateway
+            context: .
+            dockerfile: api-gateway/Dockerfile
+            image: medicatch-api-gateway
+
+          - service: health-service
+            context: .
+            dockerfile: health-service/Dockerfile
+            image: medicatch-health-service
+
+          - service: insurance-service
+            context: .
+            dockerfile: insurance-service/Dockerfile
+            image: medicatch-insurance-service
+
+          - service: chat-service
+            context: .
+            dockerfile: chat-service/Dockerfile
+            image: medicatch-chat-service
+
+          - service: frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
+            image: medicatch-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=short
+
+      - name: Build and push — ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context:     ${{ matrix.context }}
+          file:        ${{ matrix.dockerfile }}
+          push:        true
+          tags:        ${{ steps.meta.outputs.tags }}
+          labels:      ${{ steps.meta.outputs.labels }}
+          # GitHub Actions 캐시로 레이어 재사용
+          cache-from:  type=gha,scope=${{ matrix.service }}
+          cache-to:    type=gha,mode=max,scope=${{ matrix.service }}
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 4: 배포 완료 알림 (Slack / GitHub Summary)
+  # ──────────────────────────────────────────────────────────────────────────────
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Write job summary
+        run: |
+          echo "## 🚀 Medicatch CI/CD 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 브랜치 | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 커밋 | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 빌드 상태 | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 이미지 태그 | \`latest\`, \`$(echo ${{ github.sha }} | head -c7)\` |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Slack notification (optional)
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} *Medicatch 배포*\n커밋: `${{ github.sha }}`\n결과: ${{ needs.build-and-push.result }}"
+            }
