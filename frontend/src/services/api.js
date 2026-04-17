@@ -49,6 +49,10 @@ export const reportApi = {
   getReport: (months = 12) => api.get('/health/report', { params: { months } }),
 }
 
+export const recommendationApi = {
+  getRecommendation: () => api.get('/insurance/recommend'),
+}
+
 export const chatApi = {
   sendMessage: (data) => api.post('/chat/message', data),
 }

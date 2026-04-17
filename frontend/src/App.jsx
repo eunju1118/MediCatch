@@ -8,6 +8,7 @@ import InsurancePage from './pages/Insurance/InsurancePage'
 import HealthCheckupPage from './pages/HealthCheckup/HealthCheckupPage'
 import HealthReportPage from './pages/HealthReport/HealthReportPage'
 import AiChatPage from './pages/AiChat/AiChatPage'
+import InsuranceRecommendationPage from './pages/InsuranceRecommendation/InsuranceRecommendationPage'
 
 function ProtectedRoute({ children }) {
   const { isLoggedIn } = useAuth()
@@ -37,7 +38,8 @@ function AppRoutes() {
         <Route path="insurance" element={<InsurancePage />} />
         <Route path="checkup"   element={<HealthCheckupPage />} />
         <Route path="report"    element={<HealthReportPage />} />
-        <Route path="chat"      element={<AiChatPage />} />
+        <Route path="chat"           element={<AiChatPage />} />
+        <Route path="recommendation" element={<InsuranceRecommendationPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
