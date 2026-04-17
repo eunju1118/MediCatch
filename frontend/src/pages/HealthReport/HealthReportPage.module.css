@@ -1,40 +1,167 @@
-.page { padding: 8px 0; }
-.title { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: #1a1a2e; }
-.subtitle { font-size: 13px; color: #5f6368; margin-bottom: 24px; }
+.page { display: flex; flex-direction: column; gap: 20px; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.topRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.title { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: #1a1a2e; }
+.subtitle { font-size: 13px; color: #5f6368; }
+
+.controls { display: flex; gap: 10px; align-items: center; }
+
+.select {
+  padding: 7px 10px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.btn {
+  padding: 8px 16px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover { background: #1557b0; }
+.btn:disabled { background: #9aa0a6; cursor: not-allowed; }
+
+.error {
+  background: #fce8e6;
+  color: #d93025;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #5f6368;
+  font-size: 15px;
+}
+
+.emptyHint { font-size: 13px; margin-top: 8px; color: #9aa0a6; }
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.available { border-color: #34a853; background: #e6f4ea; }
+.unavailable { border-color: #f0a500; background: #fef7e0; }
+
+.summaryLabel { font-size: 12px; color: #5f6368; margin-bottom: 6px; }
+.summaryValue { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
 
 .card {
   background: #fff;
   border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
   padding: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
-.cardTitle { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #1a1a2e; }
+.wide { grid-column: 1 / -1; }
 
-.gapCard { grid-column: span 2; }
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 16px;
+}
 
-.gapList { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.noData { color: #9aa0a6; font-size: 13px; text-align: center; padding: 40px 0; }
 
-.gapItem { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.tableWrap { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  background: #f8f9fa;
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: #5f6368;
+  border-bottom: 1px solid #e8eaed;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px;
+  border-bottom: 1px solid #f1f3f4;
+  color: #3c4043;
+}
+
+.amount { font-weight: 600; color: #1a73e8; }
+
+.badge {
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.gapList { display: flex; flex-direction: column; gap: 12px; }
+
+.gapItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  background: #fef7e0;
+  border-radius: 8px;
+  border-left: 4px solid #f0a500;
+}
+
+.gapLeft { display: flex; align-items: flex-start; gap: 10px; flex: 1; }
 
 .gapBadge {
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: #fce8e6;
-  color: #d93025;
+  background: #f0a500;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
-.gapCovered {
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: #e6f4ea;
-  color: #188038;
-  white-space: nowrap;
+.gapDesc { font-size: 13px; font-weight: 500; color: #3c4043; }
+.gapStats { font-size: 12px; color: #5f6368; margin-top: 2px; }
+.gapRec { font-size: 12px; color: #e37400; font-style: italic; white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+  .gapItem { flex-direction: column; }
 }

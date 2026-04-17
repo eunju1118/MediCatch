@@ -1,0 +1,140 @@
+.page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f8f9fa 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.logoIcon {
+  background: #1a73e8;
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoText {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.tagline {
+  font-size: 13px;
+  color: #5f6368;
+  margin-bottom: 28px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+.input {
+  padding: 10px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input:focus { border-color: #1a73e8; }
+
+.error {
+  font-size: 13px;
+  color: #d93025;
+  background: #fce8e6;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.btn {
+  padding: 11px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.2s;
+}
+
+.btn:hover { background: #1557b0; }
+.btn:disabled { background: #9aa0a6; cursor: not-allowed; }
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #9aa0a6;
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e8eaed;
+}
+
+.demoBtn {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #5f6368;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.demoBtn:hover { background: #f8f9fa; border-color: #9aa0a6; }
+
+.demoNote {
+  font-size: 11px;
+  color: #9aa0a6;
+  margin-top: 10px;
+  line-height: 1.5;
+}

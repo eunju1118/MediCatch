@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { medicalApi } from '../../services/api'
 import styles from './MedicalRecordsPage.module.css'
 
+const TELECOM_OPTIONS = [
+  { value: '0', label: 'SKT' },
+  { value: '1', label: 'KT' },
+  { value: '2', label: 'LGU+' },
+]
+
 function MedicalRecordsPage() {
   const [form, setForm] = useState({
     userName: '', identity: '', phoneNo: '',
@@ -13,9 +19,8 @@ function MedicalRecordsPage() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
-  const handleChange = (e) => {
+  const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-  }
 
   const handleRequest = async (e) => {
     e.preventDefault()
@@ -23,13 +28,13 @@ function MedicalRecordsPage() {
     setError(null)
     try {
       const res = await medicalApi.request(form)
-      const code = res?.data?.result?.code
+      const payload = res.data ?? res
+      const code = payload?.result?.code
       if (code === 'CF-03002') {
-        // 2-Way 인증 필요
-        setTwoWayMeta(res.data.data)
+        setTwoWayMeta(payload.data)
         setStep('twoWay')
       } else {
-        setResult(res.data)
+        setResult(payload)
         setStep('done')
       }
     } catch (err) {
@@ -41,14 +46,16 @@ function MedicalRecordsPage() {
   const handleCertify = async () => {
     setStep('pending')
     try {
-      const res = await medicalApi.certify({ ...twoWayMeta, ...form })
-      setResult(res.data)
+      const res = await medicalApi.certify({ ...twoWayMeta, original: form })
+      setResult(res.data ?? res)
       setStep('done')
     } catch (err) {
       setError(err.response?.data?.message || '인증 실패')
       setStep('twoWay')
     }
   }
+
+  const treats = result?.resBasicTreatList ?? []
 
   return (
     <div className={styles.page}>
@@ -70,9 +77,9 @@ function MedicalRecordsPage() {
             </label>
             <label>통신사
               <select name="telecom" value={form.telecom} onChange={handleChange}>
-                <option value="0">SKT</option>
-                <option value="1">KT</option>
-                <option value="2">LGU+</option>
+                {TELECOM_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
             </label>
             <label>조회 시작일
@@ -94,20 +101,56 @@ function MedicalRecordsPage() {
       {step === 'twoWay' && (
         <div className={styles.twoWay}>
           <p>카카오톡 / PASS / SMS 인증을 완료한 후 아래 버튼을 눌러주세요.</p>
-          <button className={styles.btn} onClick={handleCertify}>
-            인증 완료
-          </button>
+          {error && <p className={styles.error}>{error}</p>}
+          <button className={styles.btn} onClick={handleCertify}>인증 완료</button>
+          <button className={styles.secondaryBtn} onClick={() => setStep('idle')}>처음으로</button>
         </div>
       )}
 
-      {step === 'done' && result && (
+      {step === 'done' && (
         <div className={styles.result}>
-          <h2>조회 결과</h2>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
+          <div className={styles.resultHeader}>
+            <h2>조회 결과 ({treats.length}건)</h2>
+            <button className={styles.secondaryBtn} onClick={() => { setStep('idle'); setResult(null) }}>
+              다시 조회
+            </button>
+          </div>
+
+          {treats.length === 0 ? (
+            <p className={styles.noData}>조회된 진료 기록이 없습니다.</p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>진료일</th><th>의료기관</th><th>진료과</th>
+                    <th>질병명</th><th>총 진료비</th><th>본인부담금</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {treats.map((t, i) => (
+                    <tr key={i}>
+                      <td>{formatDate(t.reqDate)}</td>
+                      <td>{t.resMedInstNm}</td>
+                      <td>{t.resDeptCdNm}</td>
+                      <td>{t.resDissCdNm || t.resDissCd || '-'}</td>
+                      <td className={styles.amount}>{Number(t.resTotalCost || 0).toLocaleString()}원</td>
+                      <td className={styles.amount}>{Number(t.resPatPayment || 0).toLocaleString()}원</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
+}
+
+function formatDate(dateStr) {
+  if (!dateStr || dateStr.length < 8) return dateStr || '-'
+  return `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
 }
 
 export default MedicalRecordsPage

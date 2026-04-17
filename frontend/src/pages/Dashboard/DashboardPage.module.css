@@ -1,0 +1,96 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.welcome {
+  background: linear-gradient(120deg, #1a73e8 0%, #0d47a1 100%);
+  color: white;
+  border-radius: 14px;
+  padding: 28px 32px;
+}
+
+.greeting {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.userId {
+  color: #a8c7fa;
+}
+
+.subtitle {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(26, 115, 232, 0.12);
+  transform: translateY(-2px);
+  border-color: #1a73e8;
+}
+
+.cardIcon {
+  font-size: 30px;
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 3px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: #5f6368;
+  line-height: 1.4;
+}
+
+.infoBox {
+  background: #e8f0fe;
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.infoTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin-bottom: 10px;
+}
+
+.infoList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 16px;
+}
+
+.infoList li {
+  font-size: 13px;
+  color: #3c4043;
+  line-height: 1.5;
+}
