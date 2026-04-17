@@ -10,6 +10,7 @@ import com.medicatch.insurance.dto.request.InsuranceContractCertifyRequest;
 import com.medicatch.insurance.dto.request.InsuranceContractRequest;
 import com.medicatch.insurance.dto.response.contract.InsuranceContractResponse;
 import com.medicatch.insurance.dto.response.contract.InsuranceContractResult;
+import com.medicatch.insurance.store.InsuranceDataStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,23 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 내보험다보여 계약정보 조회 서비스
- *
- * CODEF API: /v1/kr/insurance/0001/credit4u/contract-info
- *
- * <h3>플로우</h3>
- * <pre>
- * [1단계] POST /contract
- *   └─ requestContract(InsuranceContractRequest)
- *        ├─ CF-00000 : InsuranceContractResult.success(contractInfo) 반환
- *        └─ CF-03002 : InsuranceContractResult.pending(ctx)          반환
- *
- * [2단계] POST /contract/certify
- *   └─ certifyAndFetch(InsuranceContractCertifyRequest)
- *        └─ CF-00000 : InsuranceContractResult.success(contractInfo) 반환
- * </pre>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,12 +29,12 @@ public class InsuranceContractService {
     private final CodefInsuranceClient codefClient;
     private final TwoWayAuthHandler twoWayAuthHandler;
     private final ObjectMapper objectMapper;
+    private final InsuranceDataStore insuranceDataStore;
 
-    public InsuranceContractResult requestContract(InsuranceContractRequest request) {
+    public InsuranceContractResult requestContract(InsuranceContractRequest request, String userId) {
         log.info("내보험다보여 계약정보 조회: user={}, type={}", request.getUserName(), request.getType());
 
-        CodefResponse response = twoWayAuthHandler.executeFirst(
-                PRODUCT_URL, buildParams(request));
+        CodefResponse response = twoWayAuthHandler.executeFirst(PRODUCT_URL, buildParams(request));
 
         if (response.isTwoWayRequired()) {
             TwoWayContext ctx = twoWayAuthHandler.extractContext(response);
@@ -64,10 +48,12 @@ public class InsuranceContractService {
             throw CodefInsuranceException.fromResponse(response, PRODUCT_URL);
         }
 
-        return InsuranceContractResult.success(toContractResponse(response));
+        InsuranceContractResponse contractInfo = toContractResponse(response);
+        insuranceDataStore.storeContractData(userId, contractInfo);
+        return InsuranceContractResult.success(contractInfo);
     }
 
-    public InsuranceContractResult certifyAndFetch(InsuranceContractCertifyRequest certifyRequest) {
+    public InsuranceContractResult certifyAndFetch(InsuranceContractCertifyRequest certifyRequest, String userId) {
         log.info("계약정보 2차 인증: jti={}", certifyRequest.getJti());
 
         TwoWayContext ctx = TwoWayContext.builder()
@@ -86,7 +72,9 @@ public class InsuranceContractService {
             throw CodefInsuranceException.fromResponse(response, PRODUCT_URL);
         }
 
-        return InsuranceContractResult.success(toContractResponse(response));
+        InsuranceContractResponse contractInfo = toContractResponse(response);
+        insuranceDataStore.storeContractData(userId, contractInfo);
+        return InsuranceContractResult.success(contractInfo);
     }
 
     private HashMap<String, Object> buildParams(InsuranceContractRequest req) {
