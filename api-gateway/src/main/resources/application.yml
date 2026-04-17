@@ -10,9 +10,24 @@ spring:
         locator:
           enabled: true
           lower-case-service-id: true
+      # CORS preflight 중복 헤더 제거
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       routes:
-        # Health Service
-        - id: health-service
+
+        # ── /api/medical/** → health-service (진료정보 직접 경로) ─────────
+        # StripPrefix=1: /api/medical/info → /medical/info
+        - id: medical-route
+          uri: lb://health-service
+          predicates:
+            - Path=/api/medical/**
+          filters:
+            - StripPrefix=1
+            - name: JwtAuthFilter
+
+        # ── /api/health/** → health-service ─────────────────────────────
+        # StripPrefix=2: /api/health/medical/info → /medical/info
+        - id: health-route
           uri: lb://health-service
           predicates:
             - Path=/api/health/**
@@ -20,8 +35,9 @@ spring:
             - StripPrefix=2
             - name: JwtAuthFilter
 
-        # Insurance Service
-        - id: insurance-service
+        # ── /api/insurance/** → insurance-service ────────────────────────
+        # StripPrefix=2: /api/insurance/register → /register
+        - id: insurance-route
           uri: lb://insurance-service
           predicates:
             - Path=/api/insurance/**
@@ -29,8 +45,9 @@ spring:
             - StripPrefix=2
             - name: JwtAuthFilter
 
-        # Chat Service
-        - id: chat-service
+        # ── /api/chat/** → chat-service ───────────────────────────────────
+        # StripPrefix=2: /api/chat/messages → /messages
+        - id: chat-route
           uri: lb://chat-service
           predicates:
             - Path=/api/chat/**
@@ -38,30 +55,48 @@ spring:
             - StripPrefix=2
             - name: JwtAuthFilter
 
-        # Auth (공개 엔드포인트 - JWT 필터 없음)
-        - id: auth-public
+        # ── /api/auth/** → 공개 엔드포인트 (JWT 필터 없음) ───────────────
+        - id: auth-route
           uri: lb://health-service
           predicates:
             - Path=/api/auth/**
           filters:
             - StripPrefix=2
 
+# ── Eureka ──────────────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 5
   instance:
     prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
+# ── JWT ──────────────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET:medicatch-secret-key-must-be-at-least-256-bits-long}
+  expiration: 86400   # 24시간 (초)
 
+# ── Actuator ──────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
         include: health, info, gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
 
+# ── Logging ──────────────────────────────────────────────────────────────────
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
+    com.medicatch.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    reactor.netty: INFO
