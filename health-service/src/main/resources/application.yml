@@ -32,6 +32,10 @@ codef:
   public-key: ${CODEF_PUBLIC_KEY:demo_public_key}
   mode: ${CODEF_MODE:DEMO}   # DEMO | REAL
 
+jwt:
+  secret: ${JWT_SECRET:medicatch-secret-key-must-be-at-least-256-bits-long}
+  expiration: 86400
+
 management:
   endpoints:
     web:

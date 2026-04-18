@@ -55,6 +55,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 회원가입/로그인 비즈니스 오류 (중복 ID, 비밀번호 불일치 등)
+     * HTTP 400 Bad Request
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("요청 처리 오류: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    /**
      * 그 외 예상치 못한 예외
      * HTTP 500 Internal Server Error
      */
