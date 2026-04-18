@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/common/Layout'
 import LoginPage from './pages/Login/LoginPage'
+import RegisterPage from './pages/Register/RegisterPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import MedicalRecordsPage from './pages/MedicalRecords/MedicalRecordsPage'
 import InsurancePage from './pages/Insurance/InsurancePage'
@@ -23,6 +24,10 @@ function AppRoutes() {
       <Route
         path="/login"
         element={isLoggedIn ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/register"
+        element={isLoggedIn ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
       />
       <Route
         path="/"

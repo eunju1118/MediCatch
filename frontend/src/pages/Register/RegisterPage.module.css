@@ -95,60 +95,50 @@
   font-weight: 600;
   cursor: pointer;
   margin-top: 4px;
+  width: 100%;
   transition: background 0.2s;
 }
 
 .btn:hover { background: #1557b0; }
 .btn:disabled { background: #9aa0a6; cursor: not-allowed; }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px 0;
-  color: #9aa0a6;
-  font-size: 12px;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: #e8eaed;
-}
-
-.demoBtn {
-  width: 100%;
-  padding: 10px;
-  background: transparent;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #5f6368;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.demoBtn:hover { background: #f8f9fa; border-color: #9aa0a6; }
-
-.demoNote {
-  font-size: 11px;
-  color: #9aa0a6;
-  margin-top: 10px;
-  line-height: 1.5;
-}
-
-.registerLink {
+.loginLink {
   font-size: 13px;
   color: #5f6368;
   margin-top: 20px;
 }
 
-.registerLink a {
+.loginLink a {
   color: #1a73e8;
   text-decoration: none;
   font-weight: 500;
 }
 
-.registerLink a:hover { text-decoration: underline; }
+.loginLink a:hover { text-decoration: underline; }
+
+.successIcon {
+  width: 64px;
+  height: 64px;
+  background: #e6f4ea;
+  color: #34a853;
+  border-radius: 50%;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+
+.successTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 12px;
+}
+
+.successMsg {
+  font-size: 14px;
+  color: #5f6368;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}

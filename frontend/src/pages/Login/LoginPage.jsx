@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { authApi } from '../../services/api'
 import styles from './LoginPage.module.css'
@@ -85,6 +85,10 @@ function LoginPage() {
         </button>
         <p className={styles.demoNote}>
           데모 모드에서는 실제 API 호출 시 인증 오류가 발생할 수 있습니다.
+        </p>
+
+        <p className={styles.registerLink}>
+          계정이 없으신가요? <Link to="/register">회원가입</Link>
         </p>
       </div>
     </div>

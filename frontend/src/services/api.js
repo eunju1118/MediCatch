@@ -25,7 +25,8 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  login: (data) => api.post('/auth/login', data),
+  login:    (data) => api.post('/auth/login', data),
+  register: (data) => api.post('/auth/register', data),
 }
 
 export const medicalApi = {
