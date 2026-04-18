@@ -7,6 +7,7 @@ services:
     container_name: medicatch-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: medicatch
       MYSQL_USER: medicatch
       MYSQL_PASSWORD: medicatch1234
     ports:
