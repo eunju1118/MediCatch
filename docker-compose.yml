@@ -23,8 +23,8 @@ services:
   # ── Service Discovery ───────────────────────────────
   eureka-server:
     build:
-      context: ./eureka-server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: eureka-server/Dockerfile
     container_name: medicatch-eureka
     ports:
       - "8761:8761"
@@ -37,8 +37,8 @@ services:
   # ── API Gateway ─────────────────────────────────────
   api-gateway:
     build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: medicatch-gateway
     ports:
       - "8080:8080"
@@ -52,8 +52,8 @@ services:
   # ── Health Service ──────────────────────────────────
   health-service:
     build:
-      context: ./health-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: health-service/Dockerfile
     container_name: medicatch-health
     ports:
       - "8081:8081"
@@ -74,8 +74,8 @@ services:
   # ── Insurance Service ────────────────────────────────
   insurance-service:
     build:
-      context: ./insurance-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: insurance-service/Dockerfile
     container_name: medicatch-insurance
     ports:
       - "8082:8082"
@@ -96,8 +96,8 @@ services:
   # ── Chat Service ─────────────────────────────────────
   chat-service:
     build:
-      context: ./chat-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: chat-service/Dockerfile
     container_name: medicatch-chat
     ports:
       - "8085:8085"
@@ -109,6 +109,7 @@ services:
         condition: service_healthy
 
   # ── Frontend ─────────────────────────────────────────
+  # frontend는 부모 POM 불필요 → context를 ./frontend로 유지
   frontend:
     build:
       context: ./frontend
