@@ -48,7 +48,7 @@ services:
       - EUREKA_URL=http://eureka-server:8761/eureka/
     depends_on:
       eureka-server:
-        condition: service_healthy
+        condition: service_started
 
   # ── Health Service ──────────────────────────────────
   health-service:
@@ -70,7 +70,7 @@ services:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_healthy
+        condition: service_started
 
   # ── Insurance Service ────────────────────────────────
   insurance-service:
@@ -92,7 +92,7 @@ services:
       mysql:
         condition: service_healthy
       eureka-server:
-        condition: service_healthy
+        condition: service_started
 
   # ── Chat Service ─────────────────────────────────────
   chat-service:
@@ -107,7 +107,7 @@ services:
       - EUREKA_URL=http://eureka-server:8761/eureka/
     depends_on:
       eureka-server:
-        condition: service_healthy
+        condition: service_started
 
   # ── Frontend ─────────────────────────────────────────
   # frontend는 부모 POM 불필요 → context를 ./frontend로 유지
