@@ -24,7 +24,7 @@ public class MedicalRequest {
 
     private String telecom = "0";   // 통신사: 0=SKT, 1=KT, 2=LGU+
 
-    private String loginType = "2"; // 2=인증서/휴대폰, 5=간편인증
+    private String loginType = "5"; // 2=인증서/휴대폰, 5=간편인증
 
     private String loginTypeLevel = "1"; // 2인경우: 0=인증서, 1=휴대폰
 

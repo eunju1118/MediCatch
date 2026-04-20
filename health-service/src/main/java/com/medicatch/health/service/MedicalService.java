@@ -82,7 +82,7 @@ public class MedicalService {
         params.put("loginType",       req.getLoginType());
         params.put("loginTypeLevel",  req.getLoginTypeLevel());
         params.put("userName",        req.getUserName());
-        params.put("identity",        codefClient.encryptRSA(req.getIdentity()));
+        params.put("identity",        req.getIdentity());
         params.put("phoneNo",         req.getPhoneNo());
         params.put("telecom",         req.getTelecom());
         params.put("authMethod",      req.getAuthMethod());

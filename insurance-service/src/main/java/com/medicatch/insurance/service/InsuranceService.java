@@ -33,7 +33,7 @@ public class InsuranceService {
         HashMap<String, Object> params = new HashMap<>();
         params.put("organization", "0001");
         params.put("userName", request.getUserName());
-        params.put("identity", codefClient.encryptRSA(request.getIdentity()));
+        params.put("identity", request.getIdentity());
         params.put("telecom", request.getTelecom());
         params.put("phoneNo", request.getPhoneNo());
         params.put("authMethod", request.getAuthMethod());

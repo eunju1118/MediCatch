@@ -93,7 +93,7 @@ public class InsuranceRegisterService {
         HashMap<String, Object> params = new HashMap<>();
         params.put("organization", "0001");
         params.put("userName",    req.getUserName());
-        params.put("identity",    codefClient.encryptRSA(req.getIdentity()));
+        params.put("identity",    req.getIdentity());
         params.put("birthDate",   req.getBirthDate());
         params.put("telecom",     req.getTelecom());
         params.put("phoneNo",     req.getPhoneNo());

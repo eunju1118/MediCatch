@@ -19,7 +19,7 @@ public class InsuranceContractRequest {
     private String password;         // RSA 암호화 전 비밀번호
 
     @NotBlank
-    private String identity;         // 주민번호 13자리 (RSA 암호화 후 전송)
+    private String identity;
 
     /**
      * 보험 유형

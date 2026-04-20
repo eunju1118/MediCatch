@@ -28,7 +28,7 @@ public class CodefConfig {
     public EasyCodef easyCodef(CodefProperties props) {
         EasyCodef codef = new EasyCodef();
 
-        if ("REAL".equalsIgnoreCase(props.getMode())) {
+        if ("API".equalsIgnoreCase(props.getMode())) {
             log.info("[CODEF] 실서비스 모드로 초기화");
             codef.setClientInfo(props.getClientId(), props.getClientSecret());
         } else {
@@ -42,8 +42,8 @@ public class CodefConfig {
 
     @Bean
     public EasyCodefServiceType serviceType(CodefProperties props) {
-        return "REAL".equalsIgnoreCase(props.getMode())
-                ? EasyCodefServiceType.REAL
+        return "API".equalsIgnoreCase(props.getMode())
+                ? EasyCodefServiceType.API
                 : EasyCodefServiceType.DEMO;
     }
 }

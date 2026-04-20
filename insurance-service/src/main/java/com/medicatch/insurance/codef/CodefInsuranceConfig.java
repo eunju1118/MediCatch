@@ -15,7 +15,7 @@ public class CodefInsuranceConfig {
     @Bean
     public EasyCodef easyCodef(CodefInsuranceProperties props) {
         EasyCodef codef = new EasyCodef();
-        if ("REAL".equalsIgnoreCase(props.getMode())) {
+        if ("API".equalsIgnoreCase(props.getMode())) {
             codef.setClientInfo(props.getClientId(), props.getClientSecret());
             log.info("CODEF 실서비스 모드로 초기화");
         } else {
@@ -28,8 +28,8 @@ public class CodefInsuranceConfig {
 
     @Bean
     public EasyCodefServiceType serviceType(CodefInsuranceProperties props) {
-        return "REAL".equalsIgnoreCase(props.getMode())
-                ? EasyCodefServiceType.REAL
+        return "API".equalsIgnoreCase(props.getMode())
+                ? EasyCodefServiceType.API
                 : EasyCodefServiceType.DEMO;
     }
 }

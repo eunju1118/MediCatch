@@ -7,6 +7,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.Cipher;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -101,11 +107,37 @@ public class CodefClient {
      * @return RSA 암호화된 Base64 문자열
      * @throws CodefApiException 암호화 실패 시
      */
+//    public String encryptRSA(String plainText) {
+//        try {
+//            return EasyCodefUtil.encryptRSA(plainText, codefProperties.getPublicKey());
+//        } catch (Exception e) {
+//            log.error("[CODEF] RSA 암호화 실패: {}", e.getMessage());
+//            throw new CodefApiException(
+//                    "RSA 암호화 실패: " + e.getMessage(),
+//                    CodefResultCode.UNKNOWN.getCode(), null, e
+//            );
+//        }
+//    }
     public String encryptRSA(String plainText) {
         try {
-            return EasyCodefUtil.encryptRSA(plainText, codefProperties.getPublicKey());
+            // 1. 공개키 디코딩 (Standard Base64 사용)
+            byte[] bytePublicKey = Base64.getDecoder().decode(codefProperties.getPublicKey());
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PublicKey key = keyFactory.generatePublic(new X509EncodedKeySpec(bytePublicKey));
+
+            // 2. Cipher 설정 (RSA/ECB/PKCS1Padding)
+            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+
+            // 3. 암호화 수행
+            byte[] bytePlain = plainText.getBytes(StandardCharsets.UTF_8);
+            byte[] byteEncrypted = cipher.doFinal(bytePlain);
+
+            // 4. 표준 Base64 인코딩 (여기서 URL-safe 문자 '_' 문제를 해결함)
+            return Base64.getEncoder().encodeToString(byteEncrypted);
+
         } catch (Exception e) {
-            log.error("[CODEF] RSA 암호화 실패: {}", e.getMessage());
+            log.error("[CODEF] 자체 RSA 암호화 실패: {}", e.getMessage());
             throw new CodefApiException(
                     "RSA 암호화 실패: " + e.getMessage(),
                     CodefResultCode.UNKNOWN.getCode(), null, e

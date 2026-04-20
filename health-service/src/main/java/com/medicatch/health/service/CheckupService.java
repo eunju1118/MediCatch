@@ -69,7 +69,7 @@ public class CheckupService {
         params.put("organization",    "0002");
         params.put("loginType",       req.getLoginType());
         params.put("loginTypeLevel",  req.getLoginTypeLevel());
-        params.put("identity",        codefClient.encryptRSA(req.getIdentity()));
+        params.put("identity",        req.getIdentity());
         params.put("birthDate",       req.getBirthDate());
         params.put("certType",        req.getCertType());
         params.put("inquiryType",     req.getInquiryType());

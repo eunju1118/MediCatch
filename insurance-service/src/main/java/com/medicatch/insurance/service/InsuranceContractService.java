@@ -82,7 +82,7 @@ public class InsuranceContractService {
         params.put("organization", "0001");
         params.put("id",          req.getId());
         params.put("password",    codefClient.encryptRSA(req.getPassword()));
-        params.put("identity",    codefClient.encryptRSA(req.getIdentity()));
+        params.put("identity",    req.getIdentity());
         params.put("type",        req.getType());
         params.put("userName",    req.getUserName());
         params.put("phoneNo",     req.getPhoneNo());
@@ -94,22 +94,32 @@ public class InsuranceContractService {
     @SuppressWarnings("unchecked")
     private InsuranceContractResponse toContractResponse(CodefResponse response) {
         try {
-            List<Map<String, Object>> dataList = response.dataAsList();
-            if (dataList == null || dataList.isEmpty()) {
-                log.warn("계약정보 응답 data 배열이 비어있음");
+            if (!response.hasData()) {
                 return new InsuranceContractResponse();
             }
-            InsuranceContractResponse result =
-                    objectMapper.convertValue(dataList.get(0), InsuranceContractResponse.class);
-            log.info("계약정보 파싱 완료: flatRate={}건, actualLoss={}건, car={}건, savings={}건",
-                    result.getResFlatRateContractList()   != null ? result.getResFlatRateContractList().size()   : 0,
-                    result.getResActualLossContractList() != null ? result.getResActualLossContractList().size() : 0,
-                    result.getResCarContractList()        != null ? result.getResCarContractList().size()        : 0,
-                    result.getResSavingsContractList()    != null ? result.getResSavingsContractList().size()    : 0);
+
+            // 1. 전체 data Map을 가져옴
+            Map<String, Object> dataMap = response.dataAsMap();
+
+            // 2. dataMap 안에 있는 "contractInfo"를 꺼냄
+            Object contractInfoObj = dataMap.get("contractInfo");
+
+            if (contractInfoObj == null) {
+                log.warn("응답에 contractInfo 필드가 없습니다.");
+                return new InsuranceContractResponse();
+            }
+
+            // 3. contractInfo 객체를 DTO로 변환
+            InsuranceContractResponse result = objectMapper.convertValue(contractInfoObj, InsuranceContractResponse.class);
+
+            log.info("최종 파싱 완료: 정액보험 {}건",
+                    result.getResFlatRateContractList() != null ? result.getResFlatRateContractList().size() : 0);
+
             return result;
+
         } catch (Exception e) {
-            log.error("계약정보 응답 파싱 실패: {}", e.getMessage());
-            throw new CodefInsuranceException("계약정보 응답 변환 실패: " + e.getMessage(), e);
+            log.error("계약정보 변환 실패: {}", e.getMessage());
+            throw new CodefInsuranceException("계약정보 변환 실패: " + e.getMessage(), e);
         }
     }
 }

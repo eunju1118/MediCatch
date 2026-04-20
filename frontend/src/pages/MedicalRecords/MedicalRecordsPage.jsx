@@ -11,7 +11,7 @@ const TELECOM_OPTIONS = [
 function MedicalRecordsPage() {
   const [form, setForm] = useState({
     userName: '', identity: '', phoneNo: '',
-    telecom: '0', loginType: '2', loginTypeLevel: '1',
+    telecom: '0', loginType: '5', loginTypeLevel: '1',
     authMethod: '0', startDate: '', endDate: '', type: '0',
   })
   const [step, setStep] = useState('idle')   // idle | pending | twoWay | done
@@ -22,36 +22,82 @@ function MedicalRecordsPage() {
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
 
+  // const handleRequest = async (e) => {
+  //   e.preventDefault()
+  //   setStep('pending')
+  //   setError(null)
+  //   try {
+  //     const res = await medicalApi.request(form)
+  //     const payload = res.data ?? res
+  //     const code = payload?.result?.code
+  //     if (code === 'CF-03002') {
+  //       setTwoWayMeta(payload.data)
+  //       setStep('twoWay')
+  //     } else {
+  //       setResult(payload)
+  //       setStep('done')
+  //     }
+  //   } catch (err) {
+  //     setError(err.response?.data?.message || '조회 실패')
+  //     setStep('idle')
+  //   }
+  // }
+
+  // 수정 확인
   const handleRequest = async (e) => {
     e.preventDefault()
     setStep('pending')
     setError(null)
     try {
       const res = await medicalApi.request(form)
-      const payload = res.data ?? res
-      const code = payload?.result?.code
-      if (code === 'CF-03002') {
-        setTwoWayMeta(payload.data)
-        setStep('twoWay')
+
+      // 백엔드 ApiResponse 구조에 맞춰 접근
+      const payload = res.data?.data || res.data;
+      const code = payload?.resultCode; // payload.result.code가 아님!
+
+      if (code === 'CF-03002' || payload?.twoWayRequired === true) {
+        // 1차 요청 성공 (추가 인증 대기 단계)
+        setTwoWayMeta(payload.twoWayContext); // jti, jobIndex 등이 담긴 객체 저장
+        setStep('twoWay'); // 여기서 멈추고 "인증 완료" 버튼을 보여줘야 함
+      } else if (code === 'CF-00000') {
+        // 추가 인증 없이 바로 성공한 경우
+        setResult(payload.medicalInfo);
+        setStep('done');
       } else {
-        setResult(payload)
-        setStep('done')
+        setError(payload?.resultMessage || '알 수 없는 응답 코드');
+        setStep('idle');
       }
     } catch (err) {
-      setError(err.response?.data?.message || '조회 실패')
-      setStep('idle')
+      setError(err.response?.data?.message || '조회 실패');
+      setStep('idle');
     }
   }
 
+  // const handleCertify = async () => {
+  //   setStep('pending')
+  //   try {
+  //     const res = await medicalApi.certify({ ...twoWayMeta, original: form })
+  //     setResult(res.data ?? res)
+  //     setStep('done')
+  //   } catch (err) {
+  //     setError(err.response?.data?.message || '인증 실패')
+  //     setStep('twoWay')
+  //   }
+  // }
+
+  // 수정 확인
   const handleCertify = async () => {
     setStep('pending')
     try {
+      // 2차 요청: 저장해둔 twoWayMeta와 폼 데이터를 함께 전송
       const res = await medicalApi.certify({ ...twoWayMeta, original: form })
-      setResult(res.data ?? res)
-      setStep('done')
+      const finalData = res.data?.data || res.data;
+
+      setResult(finalData.medicalInfo); // 실제 진료 내역 리스트 세팅
+      setStep('done');
     } catch (err) {
-      setError(err.response?.data?.message || '인증 실패')
-      setStep('twoWay')
+      setError(err.response?.data?.message || '인증 실패');
+      setStep('twoWay');
     }
   }
 
@@ -128,15 +174,40 @@ function MedicalRecordsPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/*{treats.map((t, i) => (*/}
+                  {/*  <tr key={i}>*/}
+                  {/*    <td>{formatDate(t.reqDate)}</td>*/}
+                  {/*    <td>{t.resMedInstNm}</td>*/}
+                  {/*    <td>{t.resDeptCdNm}</td>*/}
+                  {/*    <td>{t.resDissCdNm || t.resDissCd || '-'}</td>*/}
+                  {/*    <td className={styles.amount}>{Number(t.resTotalCost || 0).toLocaleString()}원</td>*/}
+                  {/*    <td className={styles.amount}>{Number(t.resPatPayment || 0).toLocaleString()}원</td>*/}
+                  {/*  </tr>*/}
+                  {/*))}*/}
                   {treats.map((t, i) => (
-                    <tr key={i}>
-                      <td>{formatDate(t.reqDate)}</td>
-                      <td>{t.resMedInstNm}</td>
-                      <td>{t.resDeptCdNm}</td>
-                      <td>{t.resDissCdNm || t.resDissCd || '-'}</td>
-                      <td className={styles.amount}>{Number(t.resTotalCost || 0).toLocaleString()}원</td>
-                      <td className={styles.amount}>{Number(t.resPatPayment || 0).toLocaleString()}원</td>
-                    </tr>
+                      <tr key={i}>
+                        {/* t.reqDate -> t.resTreatStartDate */}
+                        <td>{formatDate(t.resTreatStartDate)}</td>
+
+                        {/* t.resMedInstNm -> t.resHospitalName */}
+                        <td>{t.resHospitalName}</td>
+
+                        {/* t.resDeptCdNm -> t.resDepartment */}
+                        <td>{t.resDepartment}</td>
+
+                        {/* t.resDissCdNm -> t.resDiseaseName */}
+                        <td>{t.resDiseaseName || '-'}</td>
+
+                        {/* t.resTotalCost -> t.resTotalAmount */}
+                        <td className={styles.amount}>
+                          {Number(t.resTotalAmount || 0).toLocaleString()}원
+                        </td>
+
+                        {/* t.resPatPayment -> t.resDeductibleAmt */}
+                        <td className={styles.amount}>
+                          {Number(t.resDeductibleAmt || 0).toLocaleString()}원
+                        </td>
+                      </tr>
                   ))}
                 </tbody>
               </table>

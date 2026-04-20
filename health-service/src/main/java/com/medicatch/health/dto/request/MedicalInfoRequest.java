@@ -20,7 +20,7 @@ public class MedicalInfoRequest {
      * - "2" : 인증서 / 휴대폰 인증 (기본값)
      * - "5" : 간편인증 (카카오, PASS, 네이버 등)
      */
-    private String loginType = "2";
+    private String loginType = "5";
 
     /**
      * 로그인 세부 타입

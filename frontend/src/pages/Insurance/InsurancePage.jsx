@@ -14,7 +14,7 @@ function InsurancePage() {
   const [tab, setTab] = useState('contracts')
   const [contractForm, setContractForm] = useState({
     id: '', password: '', type: '0',
-    userName: '', phoneNo: '', telecom: '0', authMethod: '0',
+    userName: '', phoneNo: '', telecom: '0', authMethod: '0', identity: ''
   })
   const [step, setStep] = useState('idle')
   const [twoWayMeta, setTwoWayMeta] = useState(null)
@@ -102,6 +102,10 @@ function InsurancePage() {
             <label>휴대폰 번호
               <input name="phoneNo" value={contractForm.phoneNo} onChange={handleChange}
                 placeholder="010XXXXXXXX" required />
+            </label>
+            <label>주민번호
+              <input name="identity" value={contractForm.identity} onChange={handleChange}
+                     type="password" placeholder="주민번호 13자리" required />
             </label>
             <label>보험 유형
               <select name="type" value={contractForm.type} onChange={handleChange}>
