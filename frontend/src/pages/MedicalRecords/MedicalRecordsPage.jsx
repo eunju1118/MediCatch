@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { medicalApi } from '../../services/api'
+import {useState} from 'react'
+import {medicalApi} from '../../services/api'
 import styles from './MedicalRecordsPage.module.css'
 
 const TELECOM_OPTIONS = [

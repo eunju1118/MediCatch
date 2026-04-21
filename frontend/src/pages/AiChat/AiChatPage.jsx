@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { chatApi, createChatStream } from '../../services/api'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {chatApi, createChatStream} from '../../services/api'
 import styles from './AiChatPage.module.css'
 
 const INITIAL_MESSAGE = {

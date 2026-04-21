@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import {useNavigate} from 'react-router-dom'
+import {useAuth} from '../../context/AuthContext'
 import styles from './DashboardPage.module.css'
 
 const QUICK_LINKS = [

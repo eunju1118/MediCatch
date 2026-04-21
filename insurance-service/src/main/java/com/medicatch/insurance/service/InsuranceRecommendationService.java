@@ -16,26 +16,15 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * 보험 추천 분석 서비스.
- *
- * <h3>분석 순서</h3>
- * <ol>
- *   <li>health-service Feign으로 진료 기록 로드</li>
- *   <li>InsuranceDataStore에서 보험 계약 정보 로드</li>
- *   <li>진료과별 방문 횟수 집계 → 보장 공백 감지</li>
- *   <li>보험 상품명에서 이미 보장된 유형 추출 → 공백 필터링</li>
- *   <li>GPT-4o에 컨텍스트 전달 → 맞춤 추천 메시지 생성</li>
- * </ol>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class InsuranceRecommendationService {
 
-    // 보장 공백 유형 상수
     private static final String GAP_DENTAL        = "DENTAL";
     private static final String GAP_MENTAL_HEALTH = "MENTAL_HEALTH";
     private static final String GAP_ORIENTAL      = "ORIENTAL_MEDICINE";
@@ -47,38 +36,28 @@ public class InsuranceRecommendationService {
     private final OpenAiProperties    openAiProperties;
     private final WebClient           openAiWebClient;
 
-    // ── 공개 API ─────────────────────────────────────────────────────────
-
     public InsuranceRecommendation recommend(String userId) {
         log.info("보험 추천 분석 시작: userId={}", userId);
 
-        // 1. 진료 기록 로드
         List<Map<String, Object>> treatList = fetchTreatList(userId);
         boolean healthAvailable = !treatList.isEmpty();
-        log.info("진료 기록 로드 완료: {}건", treatList.size());
 
-        // 2. 보험 계약 정보 로드
         InsuranceContractResponse contractData = insuranceDataStore.getContractData(userId).orElse(null);
         boolean insuranceAvailable = contractData != null;
 
-        // 3. 보장 공백 감지
+        // 1. 보험 상품명 기반으로 이미 보장받고 있는 유형 추출
         Set<String> coveredTypes = extractCoveredTypes(contractData);
-        List<CoverageGap> gaps = detectCoverageGaps(treatList, coveredTypes);
-        log.info("보장 공백 감지: {}건", gaps.size());
 
-        // 4. 추천 보험 유형 목록
+        // 2. 진료 기록과 비교하여 공백 감지
+        List<CoverageGap> gaps = detectCoverageGaps(treatList, coveredTypes);
+
         List<String> recommendedTypes = gaps.stream()
                 .map(CoverageGap::getRecommendedInsuranceType)
                 .distinct()
                 .collect(Collectors.toList());
 
-        // 5. 계약 건수
         int contractCount = countContracts(contractData);
-
-        // 6. GPT-4o 추천 메시지 생성
         String aiMessage = generateAiMessage(userId, treatList, contractData, gaps, healthAvailable, insuranceAvailable);
-
-        log.info("보험 추천 완료: userId={}, gaps={}, aiMessage={}", userId, gaps.size(), aiMessage.length());
 
         return InsuranceRecommendation.builder()
                 .userId(userId)
@@ -93,8 +72,6 @@ public class InsuranceRecommendationService {
                 .build();
     }
 
-    // ── 진료 기록 로드 ────────────────────────────────────────────────────
-
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> fetchTreatList(String userId) {
         try {
@@ -107,15 +84,12 @@ public class InsuranceRecommendationService {
                 return (List<Map<String, Object>>) rawList;
             }
         } catch (Exception e) {
-            log.warn("health-service 진료 기록 조회 실패: userId={}, error={}", userId, e.getMessage());
+            log.warn("진료 기록 조회 실패: userId={}, error={}", userId, e.getMessage());
         }
         return List.of();
     }
 
-    // ── 보장 공백 감지 ────────────────────────────────────────────────────
-
     private List<CoverageGap> detectCoverageGaps(List<Map<String, Object>> treats, Set<String> coveredTypes) {
-        // 진료과별 집계
         Map<String, List<Map<String, Object>>> byDept = treats.stream()
                 .filter(t -> t.get("resDeptCdNm") instanceof String s && !s.isBlank())
                 .collect(Collectors.groupingBy(t -> (String) t.get("resDeptCdNm")));
@@ -124,6 +98,8 @@ public class InsuranceRecommendationService {
                 .map(entry -> {
                     String dept = entry.getKey();
                     String gapType = detectGapType(dept);
+
+                    // 이미 해당 유형의 보험이 있다면 공백에서 제외
                     if (gapType == null || coveredTypes.contains(gapType)) return null;
 
                     long totalPatPayment = entry.getValue().stream()
@@ -146,61 +122,44 @@ public class InsuranceRecommendationService {
 
     private String detectGapType(String dept) {
         if (dept.contains("치과") || dept.contains("구강") || dept.contains("치아")) return GAP_DENTAL;
-        if (dept.contains("정신") || dept.contains("신경정신"))                      return GAP_MENTAL_HEALTH;
-        if (dept.contains("한방") || dept.contains("한의"))                          return GAP_ORIENTAL;
-        if (dept.contains("안과"))                                                    return GAP_OPHTHALMOLOGY;
-        if (dept.contains("피부"))                                                    return GAP_DERMATOLOGY;
+        if (dept.contains("정신") || dept.contains("신경"))                      return GAP_MENTAL_HEALTH;
+        if (dept.contains("한방") || dept.contains("한의"))                      return GAP_ORIENTAL;
+        if (dept.contains("안과"))                                               return GAP_OPHTHALMOLOGY;
+        if (dept.contains("피부"))                                               return GAP_DERMATOLOGY;
         return null;
     }
 
-    // ── 보험 상품명 기반 보장 유형 추출 ──────────────────────────────────
+    // ── 보험 상품명 기반 보장 유형 추출 (수정된 필드명 반영) ────────────────
 
     private Set<String> extractCoveredTypes(InsuranceContractResponse contractData) {
         Set<String> covered = new HashSet<>();
         if (contractData == null) return covered;
 
-        Stream<String> flatNames = safeProductNames(contractData.getResFlatRateContractList(),
-                FlatRateContract::getResProductNm);
-        Stream<String> actualNames = safeProductNamesActual(contractData.getResActualLossContractList());
+        // 1. 정액형 보험 상품명 확인 (resProductNm -> resInsuranceName)
+        if (contractData.getResFlatRateContractList() != null) {
+            contractData.getResFlatRateContractList().stream()
+                    .map(FlatRateContract::getResInsuranceName) // 수정됨
+                    .filter(Objects::nonNull)
+                    .forEach(nm -> checkKeywords(nm, covered));
+        }
 
-        Stream.concat(flatNames, actualNames).forEach(nm -> {
-            if (nm.contains("치아") || nm.contains("치과")) covered.add(GAP_DENTAL);
-            if (nm.contains("정신") || nm.contains("신경")) covered.add(GAP_MENTAL_HEALTH);
-            if (nm.contains("한방") || nm.contains("한의")) covered.add(GAP_ORIENTAL);
-            if (nm.contains("안과"))                        covered.add(GAP_OPHTHALMOLOGY);
-            if (nm.contains("피부"))                        covered.add(GAP_DERMATOLOGY);
-        });
-
-        // 실손 특약(resSpecialClause)도 확인
+        // 2. 실손형 보험 상품명 확인 (resProductNm -> resInsuranceName)
         if (contractData.getResActualLossContractList() != null) {
             contractData.getResActualLossContractList().stream()
-                    .map(ActualLossContract::getResSpecialClause)
+                    .map(ActualLossContract::getResInsuranceName) // 수정됨
                     .filter(Objects::nonNull)
-                    .forEach(clause -> {
-                        if (clause.contains("치아") || clause.contains("치과")) covered.add(GAP_DENTAL);
-                        if (clause.contains("정신"))                            covered.add(GAP_MENTAL_HEALTH);
-                        if (clause.contains("한방") || clause.contains("한의")) covered.add(GAP_ORIENTAL);
-                        if (clause.contains("안과"))                            covered.add(GAP_OPHTHALMOLOGY);
-                        if (clause.contains("피부"))                            covered.add(GAP_DERMATOLOGY);
-                    });
+                    .forEach(nm -> checkKeywords(nm, covered));
         }
 
         return covered;
     }
 
-    @FunctionalInterface
-    private interface NameExtractor<T> {
-        String extract(T item);
-    }
-
-    private <T> Stream<String> safeProductNames(List<T> list, NameExtractor<T> extractor) {
-        if (list == null) return Stream.empty();
-        return list.stream().map(extractor::extract).filter(Objects::nonNull);
-    }
-
-    private Stream<String> safeProductNamesActual(List<ActualLossContract> list) {
-        if (list == null) return Stream.empty();
-        return list.stream().map(ActualLossContract::getResProductNm).filter(Objects::nonNull);
+    private void checkKeywords(String name, Set<String> covered) {
+        if (name.contains("치아") || name.contains("치과")) covered.add(GAP_DENTAL);
+        if (name.contains("정신") || name.contains("신경")) covered.add(GAP_MENTAL_HEALTH);
+        if (name.contains("한방") || name.contains("한의")) covered.add(GAP_ORIENTAL);
+        if (name.contains("안과"))                        covered.add(GAP_OPHTHALMOLOGY);
+        if (name.contains("피부"))                        covered.add(GAP_DERMATOLOGY);
     }
 
     // ── GPT-4o 추천 메시지 생성 ───────────────────────────────────────────
@@ -214,7 +173,6 @@ public class InsuranceRecommendationService {
             boolean insuranceAvailable) {
 
         if (openAiProperties.getApiKey() == null || openAiProperties.getApiKey().isBlank()) {
-            log.warn("OpenAI API Key 미설정 — 기본 추천 메시지 사용");
             return buildFallbackMessage(gaps, insuranceAvailable);
         }
 
@@ -223,15 +181,12 @@ public class InsuranceRecommendationService {
         try {
             Map<String, Object> requestBody = Map.of(
                     "model", openAiProperties.getModel(),
-                    "max_tokens", openAiProperties.getMaxTokens(),
-                    "temperature", openAiProperties.getTemperature(),
                     "messages", List.of(
                             Map.of("role", "system", "content", SYSTEM_PROMPT),
                             Map.of("role", "user", "content", context)
                     )
             );
 
-            @SuppressWarnings("unchecked")
             Map<String, Object> response = openAiWebClient.post()
                     .uri("/v1/chat/completions")
                     .bodyValue(requestBody)
@@ -240,9 +195,8 @@ public class InsuranceRecommendationService {
                     .block();
 
             return extractContent(response);
-
         } catch (Exception e) {
-            log.error("GPT-4o 호출 실패: {}", e.getMessage());
+            log.error("GPT 호출 실패: {}", e.getMessage());
             return buildFallbackMessage(gaps, insuranceAvailable);
         }
     }
@@ -256,112 +210,41 @@ public class InsuranceRecommendationService {
             boolean insuranceAvailable) {
 
         StringBuilder sb = new StringBuilder();
-        sb.append("=== 사용자 정보 ===\n");
-        sb.append("사용자 ID: ").append(userId).append("\n\n");
-
         if (healthAvailable) {
-            sb.append("=== 진료 기록 요약 ===\n");
-            sb.append("총 방문 건수: ").append(treats.size()).append("건\n");
-
-            Map<String, Long> deptCount = treats.stream()
-                    .filter(t -> t.get("resDeptCdNm") instanceof String s && !s.isBlank())
-                    .collect(Collectors.groupingBy(t -> (String) t.get("resDeptCdNm"), Collectors.counting()));
-
-            sb.append("주요 진료과:\n");
-            deptCount.entrySet().stream()
-                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                    .limit(5)
-                    .forEach(e -> sb.append("  - ").append(e.getKey()).append(": ").append(e.getValue()).append("회\n"));
-            sb.append("\n");
-        } else {
-            sb.append("=== 진료 기록 ===\n조회된 진료 기록이 없습니다.\n\n");
+            sb.append("- 진료 건수: ").append(treats.size()).append("건\n");
         }
-
         if (insuranceAvailable && contractData != null) {
-            sb.append("=== 현재 보험 계약 현황 ===\n");
-            int flatCount   = contractData.getResFlatRateContractList()   != null ? contractData.getResFlatRateContractList().size()   : 0;
-            int actualCount = contractData.getResActualLossContractList() != null ? contractData.getResActualLossContractList().size() : 0;
-            sb.append("정액보험: ").append(flatCount).append("건\n");
-            sb.append("실손보험: ").append(actualCount).append("건\n");
-
-            if (contractData.getResActualLossContractList() != null) {
-                contractData.getResActualLossContractList().stream().limit(3).forEach(c ->
-                        sb.append("  실손: ").append(c.getResProductNm()).append(" (").append(c.getResCompanyNm()).append(")\n")
-                );
-            }
+            int total = countContracts(contractData);
+            sb.append("- 가입 보험: ").append(total).append("건\n");
+            // 상품명 포함하여 GPT에게 전달
             if (contractData.getResFlatRateContractList() != null) {
-                contractData.getResFlatRateContractList().stream().limit(3).forEach(c ->
-                        sb.append("  정액: ").append(c.getResProductNm()).append(" (").append(c.getResCompanyNm()).append(")\n")
-                );
+                contractData.getResFlatRateContractList().forEach(c ->
+                        sb.append("  [정액] ").append(c.getResInsuranceName()).append("\n"));
             }
-            sb.append("\n");
-        } else {
-            sb.append("=== 보험 계약 ===\n조회된 보험 계약이 없거나 데이터를 불러오지 못했습니다.\n\n");
         }
-
-        sb.append("=== 감지된 보장 공백 ===\n");
-        if (gaps.isEmpty()) {
-            sb.append("현재 진료 기록 기준 보장 공백이 없습니다.\n");
-        } else {
-            gaps.forEach(g ->
-                sb.append("  - ").append(g.getDepartment())
-                        .append(": ").append(g.getVisitCount()).append("회 방문")
-                        .append(", 본인부담금 ").append(g.getTotalPatientPayment()).append("원")
-                        .append(" [").append(g.getGapType()).append("]\n")
-            );
-        }
-        sb.append("\n");
-        sb.append("위 데이터를 바탕으로 맞춤 보험 추천 메시지를 작성해주세요.");
+        sb.append("- 감지된 공백: ");
+        gaps.forEach(g -> sb.append(g.getDepartment()).append("(").append(g.getVisitCount()).append("회), "));
 
         return sb.toString();
     }
 
-    private static final String SYSTEM_PROMPT =
-            """
-            당신은 헬스케어 & 보험 플랫폼 Medicatch의 보험 전문 AI 어시스턴트입니다.
-            사용자의 실제 진료 기록과 현재 가입된 보험 계약을 분석하여
-            보장 공백을 파악하고 맞춤형 보험 추천 메시지를 제공합니다.
-
-            작성 지침:
-            1. 300자 이내의 간결하고 친근한 한국어로 작성하세요.
-            2. 구체적인 수치(방문 횟수, 본인부담금)를 활용하여 설득력 있게 작성하세요.
-            3. 감지된 보장 공백에 대해 적합한 보험 상품 유형을 1~3가지 추천하세요.
-            4. 특정 보험사나 상품명을 언급하지 말고, 상품 유형(치아보험, 실손보험 등)만 언급하세요.
-            5. 의료 진단이나 구체적인 의학적 조언은 하지 마세요.
-            6. 데이터가 부족할 경우 일반적인 조언을 제공하세요.
-            """;
+    private static final String SYSTEM_PROMPT = "당신은 보험 전문 AI Medicatch입니다. 진료 기록과 보험 현황을 분석해 300자 이내로 따뜻하게 보험을 추천해 주세요. 수치를 활용하면 좋습니다.";
 
     @SuppressWarnings("unchecked")
     private String extractContent(Map<String, Object> response) {
-        if (response == null) return buildFallbackMessage(List.of(), false);
-        var choices = (List<?>) response.get("choices");
-        if (choices == null || choices.isEmpty()) return buildFallbackMessage(List.of(), false);
-        var first   = (Map<String, Object>) choices.get(0);
-        var message = (Map<String, Object>) first.get("message");
-        if (message == null) return buildFallbackMessage(List.of(), false);
-        return String.valueOf(message.get("content"));
+        try {
+            var choices = (List<Map<String, Object>>) response.get("choices");
+            var message = (Map<String, Object>) choices.get(0).get("message");
+            return (String) message.get("content");
+        } catch (Exception e) {
+            return "분석 결과를 생성하는 중 오류가 발생했습니다.";
+        }
     }
-
-    // ── 폴백 메시지 ──────────────────────────────────────────────────────
 
     private String buildFallbackMessage(List<CoverageGap> gaps, boolean insuranceAvailable) {
-        if (gaps.isEmpty()) {
-            if (!insuranceAvailable) {
-                return "보험 계약 정보를 먼저 조회해주세요. 조회 후 진료 기록과 비교하여 보장 공백을 분석해드립니다.";
-            }
-            return "현재 진료 기록 기준으로 보장 공백이 발견되지 않았습니다. 앞으로도 정기적으로 확인하세요.";
-        }
-
-        StringBuilder msg = new StringBuilder("진료 기록 분석 결과, ");
-        msg.append(gaps.size()).append("개의 보장 공백이 발견되었습니다. ");
-        gaps.stream().limit(2).forEach(g ->
-                msg.append(g.getDepartment()).append(" 진료(").append(g.getVisitCount()).append("회)에 대한 ")
-                        .append(g.getRecommendedInsuranceType()).append(" 가입을 검토해보세요. ")
-        );
-        return msg.toString().trim();
+        if (gaps.isEmpty()) return "현재 분석된 보장 공백이 없습니다. 건강 상태를 꾸준히 관리해 보세요!";
+        return "최근 진료 이력을 바탕으로 " + gaps.get(0).getRecommendedInsuranceType() + " 가입을 고려해 보시는 것은 어떨까요?";
     }
-
-    // ── 유틸 ─────────────────────────────────────────────────────────────
 
     private int countContracts(InsuranceContractResponse c) {
         if (c == null) return 0;
@@ -373,32 +256,21 @@ public class InsuranceRecommendationService {
 
     private long parseLong(String value) {
         if (value == null || value.isBlank()) return 0L;
-        try {
-            return Long.parseLong(value.replaceAll("[^0-9]", ""));
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
+        return Long.parseLong(value.replaceAll("[^0-9]", ""));
     }
 
     private String buildDescription(String dept, String gapType) {
-        return switch (gapType) {
-            case GAP_DENTAL        -> dept + " 진료 이력이 있으나 치아(치과)보험 미가입";
-            case GAP_MENTAL_HEALTH -> dept + " 진료 이력이 있으나 정신건강 관련 보험 미가입";
-            case GAP_ORIENTAL      -> dept + " 진료 이력이 있으나 한방 특약 미가입";
-            case GAP_OPHTHALMOLOGY -> dept + " 진료 이력이 있으나 안과 특약 미가입";
-            case GAP_DERMATOLOGY   -> dept + " 진료 이력이 있으나 피부 관련 보험 미가입";
-            default                -> dept + " 진료 이력이 있으나 관련 보험 미가입";
-        };
+        return dept + " 진료 이력이 빈번하나 관련 보장이 부족합니다.";
     }
 
     private String buildRecommendedType(String gapType) {
         return switch (gapType) {
-            case GAP_DENTAL        -> "치아보험(치과보험)";
-            case GAP_MENTAL_HEALTH -> "정신건강 특약 실손보험";
-            case GAP_ORIENTAL      -> "한방 특약 실손보험";
-            case GAP_OPHTHALMOLOGY -> "안과·시력교정 특약 보험";
-            case GAP_DERMATOLOGY   -> "피부 특약 보험";
-            default                -> "해당 진료 영역 보험";
+            case GAP_DENTAL        -> "치아보험";
+            case GAP_MENTAL_HEALTH -> "마음건강 특약";
+            case GAP_ORIENTAL      -> "한방 실손특약";
+            case GAP_OPHTHALMOLOGY -> "안과질환 보험";
+            case GAP_DERMATOLOGY   -> "피부질환 특약";
+            default                -> "종합 건강보험";
         };
     }
 }

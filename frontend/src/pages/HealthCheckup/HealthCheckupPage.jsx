@@ -1,9 +1,6 @@
-import { useState } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
-import { checkupApi } from '../../services/api'
+import {useState} from 'react'
+import {CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,} from 'recharts'
+import {checkupApi} from '../../services/api'
 import styles from './HealthCheckupPage.module.css'
 
 const SIMPLE_AUTH_OPTIONS = [

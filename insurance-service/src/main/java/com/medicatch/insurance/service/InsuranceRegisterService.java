@@ -1,11 +1,7 @@
 package com.medicatch.insurance.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medicatch.insurance.codef.CodefInsuranceClient;
-import com.medicatch.insurance.codef.CodefInsuranceException;
-import com.medicatch.insurance.codef.CodefResponse;
-import com.medicatch.insurance.codef.TwoWayAuthHandler;
-import com.medicatch.insurance.codef.TwoWayContext;
+import com.medicatch.insurance.codef.*;
 import com.medicatch.insurance.dto.request.InsuranceRegisterCertifyRequest;
 import com.medicatch.insurance.dto.request.InsuranceRegisterRequest;
 import com.medicatch.insurance.dto.response.register.InsuranceRegisterResponse;

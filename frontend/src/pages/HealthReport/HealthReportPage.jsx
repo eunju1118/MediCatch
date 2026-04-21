@@ -1,9 +1,6 @@
-import { useState, useEffect } from 'react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, LineChart, Line,
-} from 'recharts'
-import { reportApi } from '../../services/api'
+import {useEffect, useState} from 'react'
+import {Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,} from 'recharts'
+import {reportApi} from '../../services/api'
 import styles from './HealthReportPage.module.css'
 
 function HealthReportPage() {

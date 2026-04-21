@@ -1,6 +1,5 @@
 package com.medicatch.health.service;
 
-import com.medicatch.health.codef.CodefApiException;
 import com.medicatch.health.codef.CodefClient;
 import com.medicatch.health.codef.CodefResponse;
 import com.medicatch.health.codef.TwoWayAuthHandler;

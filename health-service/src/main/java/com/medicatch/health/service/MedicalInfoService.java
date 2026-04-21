@@ -1,11 +1,7 @@
 package com.medicatch.health.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medicatch.health.codef.CodefApiException;
-import com.medicatch.health.codef.CodefClient;
-import com.medicatch.health.codef.CodefResponse;
-import com.medicatch.health.codef.TwoWayAuthHandler;
-import com.medicatch.health.codef.TwoWayContext;
+import com.medicatch.health.codef.*;
 import com.medicatch.health.dto.request.MedicalInfoCertifyRequest;
 import com.medicatch.health.dto.request.MedicalInfoRequest;
 import com.medicatch.health.dto.response.medical.MedicalInfoResponse;

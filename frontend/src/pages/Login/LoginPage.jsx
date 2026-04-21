@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { authApi } from '../../services/api'
+import {useState} from 'react'
+import {Link, useNavigate} from 'react-router-dom'
+import {useAuth} from '../../context/AuthContext'
+import {authApi} from '../../services/api'
 import styles from './LoginPage.module.css'
 
 function LoginPage() {

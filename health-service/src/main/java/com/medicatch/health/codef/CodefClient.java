@@ -2,7 +2,6 @@ package com.medicatch.health.codef;
 
 import io.codef.api.EasyCodef;
 import io.codef.api.EasyCodefServiceType;
-import io.codef.api.EasyCodefUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
