@@ -4,13 +4,14 @@ server:
 spring:
   application:
     name: chat-service
-  # 두 스타터(web + webflux) 공존 → 서블릿 모드 고정 (SseEmitter + Feign 사용)
+  config:
+    import: optional:file:.env[.properties]
   main:
     web-application-type: servlet
 
 # ── OpenAI ──────────────────────────────────────────────────────────────────
 openai:
-  api-key: ${OPENAI_API_KEY:your-openai-api-key}
+  api-key: ${OPENAI_API_KEY}
   model: gpt-4o
   max-tokens: 1500
   temperature: 0.7

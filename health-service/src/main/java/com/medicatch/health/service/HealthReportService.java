@@ -19,15 +19,6 @@ import java.util.stream.Stream;
 
 /**
  * 건강 통합 리포트 분석 서비스.
- *
- * <h3>분석 순서</h3>
- * <ol>
- *   <li>HealthDataStore에서 진료기록 로드</li>
- *   <li>InsuranceServiceClient(Feign)로 보험 계약정보 로드</li>
- *   <li>최근 N개월 진료기록 필터링</li>
- *   <li>월별 방문 횟수, 진료과별 현황, 비용 집계</li>
- *   <li>보험 계약 유무 기반 청구 가능 항목 및 보장 공백 도출</li>
- * </ol>
  */
 @Slf4j
 @Service
@@ -50,9 +41,6 @@ public class HealthReportService {
 
     /**
      * 건강 통합 리포트 생성.
-     *
-     * @param userId 대상 사용자 ID (X-User-Id 헤더 값)
-     * @param months 분석 기간 (개월, 기본 12)
      */
     public HealthReportResponse generateReport(String userId, int months) {
         log.info("건강 통합 리포트 생성 시작: userId={}, months={}", userId, months);
@@ -63,34 +51,29 @@ public class HealthReportService {
             log.warn("진료기록 없음: userId={}", userId);
         }
 
-        // 2. 보험 계약정보 로드 (실패 허용)
+        // 2. 보험 계약정보 로드
         Map<String, Object> insuranceDataMap = null;
         boolean insuranceAvailable = false;
         try {
             insuranceDataMap = insuranceServiceClient.getContractData(userId);
-            insuranceAvailable = Boolean.TRUE.equals(insuranceDataMap.get("hasContractData"));
-            log.debug("보험 데이터 조회 성공: userId={}, hasData={}", userId, insuranceAvailable);
+            insuranceAvailable = insuranceDataMap != null && Boolean.TRUE.equals(insuranceDataMap.get("hasContractData"));
         } catch (Exception e) {
-            log.warn("보험 데이터 조회 실패 (리포트 계속): userId={}, error={}", userId, e.getMessage());
+            log.warn("보험 데이터 조회 실패: userId={}, error={}", userId, e.getMessage());
         }
 
         // 3. 분석 기간 필터링
         LocalDate cutoff = LocalDate.now().minusMonths(months);
         List<BasicTreat> recentTreats = filterByDate(medicalData, cutoff);
-        log.info("분석 대상 진료 건수: {}건 ({}개월)", recentTreats.size(), months);
 
-        // 4. 통계 집계
+        // 4. 통계 집계 (DTO 필드명 반영)
         Map<String, Integer> monthlyVisitCount = analyzeMonthlyVisits(recentTreats);
         Map<String, Integer> departmentUsage   = analyzeDepartmentUsage(recentTreats);
-        long totalMedicalCost  = sumCost(recentTreats, BasicTreat::getResTotalCost);
-        long totalPatientCost  = sumCost(recentTreats, BasicTreat::getResPatPayment);
+        long totalMedicalCost  = sumCost(recentTreats, BasicTreat::getResTotalAmount); // 총진료비
+        long totalPatientCost  = sumCost(recentTreats, BasicTreat::getResDeductibleAmt); // 본인부담금
 
         // 5. 보험 교차 분석
         List<InsuranceClaimableItem> claimableItems = findClaimableItems(recentTreats, insuranceDataMap);
         List<CoverageGapItem>        coverageGaps   = findCoverageGaps(recentTreats, insuranceDataMap);
-
-        log.info("리포트 생성 완료: userId={}, claimable={}건, gaps={}건",
-                userId, claimableItems.size(), coverageGaps.size());
 
         return HealthReportResponse.builder()
                 .userId(userId)
@@ -113,9 +96,10 @@ public class HealthReportService {
         if (data == null || data.getResBasicTreatList() == null) return List.of();
         return data.getResBasicTreatList().stream()
                 .filter(t -> {
-                    if (t.getReqDate() == null || t.getReqDate().length() < 8) return false;
+                    String dateStr = t.getResTreatStartDate();
+                    if (dateStr == null || dateStr.length() < 8) return false;
                     try {
-                        return !LocalDate.parse(t.getReqDate(), DATE_FORMATTER).isBefore(cutoff);
+                        return !LocalDate.parse(dateStr, DATE_FORMATTER).isBefore(cutoff);
                     } catch (Exception e) {
                         return false;
                     }
@@ -123,22 +107,20 @@ public class HealthReportService {
                 .collect(Collectors.toList());
     }
 
-    /** 월별 방문 횟수 — "yyyy-MM" 키, TreeMap으로 시간순 정렬 */
     private Map<String, Integer> analyzeMonthlyVisits(List<BasicTreat> treats) {
         return treats.stream()
-                .filter(t -> t.getReqDate() != null && t.getReqDate().length() >= 6)
+                .filter(t -> t.getResTreatStartDate() != null && t.getResTreatStartDate().length() >= 6)
                 .collect(Collectors.groupingBy(
-                        t -> t.getReqDate().substring(0, 4) + "-" + t.getReqDate().substring(4, 6),
+                        t -> t.getResTreatStartDate().substring(0, 4) + "-" + t.getResTreatStartDate().substring(4, 6),
                         TreeMap::new,
                         Collectors.summingInt(t -> 1)
                 ));
     }
 
-    /** 진료과별 이용 현황 — 방문 횟수 내림차순 */
     private Map<String, Integer> analyzeDepartmentUsage(List<BasicTreat> treats) {
         return treats.stream()
-                .filter(t -> t.getResDeptCdNm() != null && !t.getResDeptCdNm().isBlank())
-                .collect(Collectors.groupingBy(BasicTreat::getResDeptCdNm, Collectors.summingInt(t -> 1)))
+                .filter(t -> t.getResDepartment() != null && !t.getResDepartment().isBlank())
+                .collect(Collectors.groupingBy(BasicTreat::getResDepartment, Collectors.summingInt(t -> 1)))
                 .entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .collect(Collectors.toMap(
@@ -174,14 +156,14 @@ public class HealthReportService {
                 : "정액보험 적용 검토 필요 — 담당 보험사에 문의하세요";
 
         return treats.stream()
-                .filter(t -> parseLong(t.getResPatPayment()) > 0)
+                .filter(t -> parseLong(t.getResDeductibleAmt()) > 0)
                 .map(t -> InsuranceClaimableItem.builder()
-                        .treatmentDate(formatDate(t.getReqDate()))
-                        .hospitalName(t.getResMedInstNm())
-                        .department(t.getResDeptCdNm())
-                        .diseaseCode(t.getResDissCd())
-                        .diseaseCodeName(t.getResDissCdNm())
-                        .patientPayment(parseLong(t.getResPatPayment()))
+                        .treatmentDate(formatDate(t.getResTreatStartDate()))
+                        .hospitalName(t.getResHospitalName())
+                        .department(t.getResDepartment())
+                        .diseaseCode(t.getResDiseaseCode())
+                        .diseaseCodeName(t.getResDiseaseName())
+                        .patientPayment(parseLong(t.getResDeductibleAmt()))
                         .claimableReason(reason)
                         .contractType(contractType)
                         .build())
@@ -197,19 +179,19 @@ public class HealthReportService {
         Set<String> coveredTypes = extractCoveredGapTypes(insuranceDataMap);
 
         Map<String, List<BasicTreat>> byDept = treats.stream()
-                .filter(t -> t.getResDeptCdNm() != null && !t.getResDeptCdNm().isBlank())
-                .collect(Collectors.groupingBy(BasicTreat::getResDeptCdNm));
+                .filter(t -> t.getResDepartment() != null && !t.getResDepartment().isBlank())
+                .collect(Collectors.groupingBy(BasicTreat::getResDepartment));
 
         return byDept.entrySet().stream()
                 .map(entry -> {
-                    String dept       = entry.getKey();
+                    String dept = entry.getKey();
                     List<BasicTreat> deptTreats = entry.getValue();
-                    String gapType    = detectGapType(dept);
+                    String gapType = detectGapType(dept);
 
                     if (gapType == null || coveredTypes.contains(gapType)) return null;
 
-                    long totalCost       = deptTreats.stream().mapToLong(t -> parseLong(t.getResTotalCost())).sum();
-                    long totalPatPayment = deptTreats.stream().mapToLong(t -> parseLong(t.getResPatPayment())).sum();
+                    long totalCost       = deptTreats.stream().mapToLong(t -> parseLong(t.getResTotalAmount())).sum();
+                    long totalPatPayment = deptTreats.stream().mapToLong(t -> parseLong(t.getResDeductibleAmt())).sum();
 
                     return CoverageGapItem.builder()
                             .department(dept)
@@ -226,17 +208,15 @@ public class HealthReportService {
                 .collect(Collectors.toList());
     }
 
-    /** 진료과명에서 보장 공백 유형 감지 (해당 없으면 null) */
     private String detectGapType(String dept) {
         if (dept.contains("치과") || dept.contains("구강") || dept.contains("치아")) return GAP_DENTAL;
         if (dept.contains("정신") || dept.contains("신경정신"))                      return GAP_MENTAL_HEALTH;
         if (dept.contains("한방") || dept.contains("한의"))                          return GAP_ORIENTAL;
         if (dept.contains("안과"))                                                    return GAP_OPHTHALMOLOGY;
         if (dept.contains("피부"))                                                    return GAP_DERMATOLOGY;
-        return null; // 일반 실손으로 커버되는 진료과
+        return null;
     }
 
-    /** 보험 계약 상품명에서 보장 유형 Set 추출 */
     @SuppressWarnings("unchecked")
     private Set<String> extractCoveredGapTypes(Map<String, Object> insuranceDataMap) {
         Set<String> covered = new HashSet<>();
@@ -263,7 +243,6 @@ public class HealthReportService {
         return covered;
     }
 
-    @SuppressWarnings("unchecked")
     private boolean hasActualLossContract(Map<String, Object> insuranceDataMap) {
         if (insuranceDataMap == null) return false;
         Object raw = insuranceDataMap.get("contractData");
@@ -272,7 +251,6 @@ public class HealthReportService {
         return list != null && !list.isEmpty();
     }
 
-    @SuppressWarnings("unchecked")
     private boolean hasFlatRateContract(Map<String, Object> insuranceDataMap) {
         if (insuranceDataMap == null) return false;
         Object raw = insuranceDataMap.get("contractData");
@@ -283,7 +261,7 @@ public class HealthReportService {
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> asList(Object obj) {
-        if (obj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map) {
+        if (obj instanceof List) {
             return (List<Map<String, Object>>) obj;
         }
         return List.of();
