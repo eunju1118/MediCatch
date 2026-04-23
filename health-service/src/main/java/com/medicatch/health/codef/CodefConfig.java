@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Configuration;
 /**
  * CODEF EasyCodef 초기화 설정
  *
- * <p>application.yml의 {@code codef.mode} 값에 따라 DEMO/REAL 모드를 선택한다.</p>
+ * <p>application.yml의 {@code codef.mode} 값에 따라 DEMO/API 모드를 선택한다.</p>
  * <pre>
  * codef:
  *   client-id:     ${CODEF_CLIENT_ID}
  *   client-secret: ${CODEF_CLIENT_SECRET}
  *   public-key:    ${CODEF_PUBLIC_KEY}
- *   mode:          DEMO   # DEMO | REAL
+ *   mode:          DEMO   # DEMO | API
  * </pre>
  */
 @Slf4j

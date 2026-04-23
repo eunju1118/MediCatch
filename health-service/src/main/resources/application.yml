@@ -32,7 +32,7 @@ codef:
   client-id: ${CODEF_CLIENT_ID}
   client-secret: ${CODEF_CLIENT_SECRET}
   public-key: ${CODEF_PUBLIC_KEY}
-  mode: ${DEMO}   # DEMO | REAL
+  mode: ${DEMO}   # DEMO | API
 
 jwt:
   secret: ${JWT_SECRET:medicatch-secret-key-must-be-at-least-256-bits-long}
