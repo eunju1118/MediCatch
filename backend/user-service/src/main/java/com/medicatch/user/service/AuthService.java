@@ -4,6 +4,7 @@ import com.medicatch.user.config.JwtTokenProvider;
 import com.medicatch.user.dto.AuthResponse;
 import com.medicatch.user.dto.ChangeEmailRequest;
 import com.medicatch.user.dto.ChangePwdRequest;
+import com.medicatch.user.dto.ForgotPwdStep1Request;
 import com.medicatch.user.dto.LoginRequest;
 import com.medicatch.user.dto.SignupRequest;
 import com.medicatch.user.dto.SignupStep1Response;
@@ -290,6 +291,7 @@ public class AuthService {
         String bcryptHash = passwordEncoder.encode(request.getPassword());
 
         return codefService.changePwdStep1(
+                userId,
                 user.getName(),
                 request.getIdentity(),
                 request.getTelecom(),
@@ -301,14 +303,70 @@ public class AuthService {
                 user.getEmail());
     }
 
-    /** 비밀번호 변경 2차: CODEF 인증 확인 성공 시 로컬 DB 비밀번호 해시 갱신 */
-    public void changePwdStep2(Long userId, SignupStep2Request request) {
-        User user = getUserById(userId);
-        String bcryptHash = codefService.changePwdStep2(request.getSessionKey(), request.getSmsAuthNo());
+    /**
+     * 비밀번호 변경 2차: SMS/PASS 인증 확인.
+     * type="0" 기준으로 항상 step3(이메일 임시비번)가 필요함 → true 반환.
+     * 드물게 step2에서 바로 완료되면(false) DB 갱신 후 false 반환.
+     */
+    public boolean changePwdStep2(Long userId, SignupStep2Request request) {
+        boolean needsStep3 = codefService.changePwdStep2(request.getSessionKey(), request.getSmsAuthNo());
+        if (!needsStep3) {
+            // step2에서 바로 완료된 케이스 — DB 갱신은 CodefService가 bcryptHash를 돌려줄 수 없으므로
+            // 이 경로는 현재 type="0"에서 실질적으로 발생하지 않음. 향후 대비용.
+            log.info("비밀번호 변경 step2 직접 완료 - userId: {}", userId);
+        }
+        return needsStep3;
+    }
 
+    /** 비밀번호 변경 3차: 이메일 임시비번 확인 → CODEF 최종 완료 + 로컬 DB 갱신 */
+    public void changePwdStep3(Long userId, String sessionKey, String tempPassword) {
+        User user = getUserById(userId);
+        String bcryptHash = codefService.changePwdStep3(sessionKey, tempPassword);
         user.setPasswordHash(bcryptHash);
         userRepository.save(user);
-        log.info("비밀번호 변경 완료 - userId: {}", userId);
+        log.info("비밀번호 변경 완료 (step3) - userId: {}", userId);
+    }
+
+    // ── 비밀번호 찾기 (비인증) ──────────────────────────────────────────
+
+    /** 비밀번호 찾기 1차: codefId로 사용자 조회 → CODEF SMS/PASS 인증 트리거 */
+    public SignupStep1Response forgotPwdStep1(ForgotPwdStep1Request request) {
+        User user = userRepository.findByCodefId(request.getCodefId())
+                .orElseThrow(() -> new SignupFieldException("codefId", "등록되지 않은 아이디입니다."));
+
+        if (!request.getPassword().equals(request.getPasswordConfirm())) {
+            throw new SignupFieldException("passwordConfirm", "비밀번호가 일치하지 않습니다.");
+        }
+        validatePassword(request.getPassword(), user.getCodefId());
+
+        String bcryptHash = passwordEncoder.encode(request.getPassword());
+
+        return codefService.changePwdStep1(
+                user.getId(),
+                user.getName(),
+                request.getIdentity(),
+                request.getTelecom(),
+                request.getPhoneNo(),
+                request.getAuthMethod() != null ? request.getAuthMethod() : "0",
+                user.getCodefId(),
+                request.getPassword(),
+                bcryptHash,
+                user.getEmail());
+    }
+
+    /** 비밀번호 찾기 2차: SMS/PASS 인증 확인 */
+    public boolean forgotPwdStep2(SignupStep2Request request) {
+        return codefService.changePwdStep2(request.getSessionKey(), request.getSmsAuthNo());
+    }
+
+    /** 비밀번호 찾기 3차: 휴대폰 임시비번 확인 → CODEF 완료 + DB 갱신 (userId는 세션에서 조회) */
+    public void forgotPwdStep3(String sessionKey, String tempPassword) {
+        Long userId = codefService.getChangeSessionUserId(sessionKey);
+        User user = getUserById(userId);
+        String bcryptHash = codefService.changePwdStep3(sessionKey, tempPassword);
+        user.setPasswordHash(bcryptHash);
+        userRepository.save(user);
+        log.info("비밀번호 찾기 완료 (step3) - userId: {}", userId);
     }
 
     // ── 유효성 검증 ───────────────────────────────────────────────────
