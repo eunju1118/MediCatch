@@ -5,6 +5,7 @@ import com.medicatch.user.dto.AuthResponse;
 import com.medicatch.user.dto.ChangeEmailRequest;
 import com.medicatch.user.dto.ChangePwdRequest;
 import com.medicatch.user.dto.ForgotPwdStep1Request;
+import com.medicatch.user.dto.ForgotPwdStep4Request;
 import com.medicatch.user.dto.LoginRequest;
 import com.medicatch.user.dto.SignupRequest;
 import com.medicatch.user.dto.SignupStep1Response;
@@ -15,9 +16,11 @@ import com.medicatch.user.entity.User;
 import com.medicatch.user.exception.SignupFieldException;
 import com.medicatch.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.Set;
@@ -170,12 +173,12 @@ public class AuthService {
         User user = userRepository.findByCodefId(request.getCodefId())
                 .orElseThrow(() -> {
                     log.warn("로그인 실패: 사용자 없음 - codefId: {}", request.getCodefId());
-                    return new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.");
                 });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.warn("로그인 실패: 비밀번호 불일치 - codefId: {}", request.getCodefId());
-            throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.");
         }
 
         log.info("로그인 성공 - userId: {}", user.getId());
@@ -202,19 +205,19 @@ public class AuthService {
         log.info("토큰 갱신 시작");
 
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new IllegalArgumentException("Invalid refresh token");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다. 다시 로그인해주세요.");
         }
         String tokenType = jwtTokenProvider.getTokenType(refreshToken);
         if (!"refresh".equals(tokenType)) {
-            throw new IllegalArgumentException("Token is not a refresh token");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다. 다시 로그인해주세요.");
         }
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         if (userId == null) {
-            throw new IllegalArgumentException("Invalid refresh token");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다. 다시 로그인해주세요.");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다. 다시 로그인해주세요."));
 
         String newAccessToken  = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
@@ -263,10 +266,16 @@ public class AuthService {
                 request.getEmail());
     }
 
-    /** 이메일 변경 2차: CODEF 인증 확인 성공 시 로컬 DB 이메일 갱신 */
-    public void changeEmailStep2(Long userId, SignupStep2Request request) {
+    /** 이메일 변경 2차: SMS 인증 확인 → 이메일 인증번호 입력(step3) 필요 여부 반환 */
+    public boolean changeEmailStep2(Long userId, SignupStep2Request request) {
+        getUserById(userId);  // 사용자 존재 확인
+        return codefService.changeEmailStep2(request.getSessionKey(), request.getSmsAuthNo());
+    }
+
+    /** 이메일 변경 3차: 새 이메일로 받은 인증번호 확인 → CODEF 완료 + 로컬 DB 갱신 */
+    public void changeEmailStep3(Long userId, String sessionKey, String emailAuthNo) {
         User user = getUserById(userId);
-        String newEmail = codefService.changeEmailStep2(request.getSessionKey(), request.getSmsAuthNo());
+        String newEmail = codefService.changeEmailStep3(sessionKey, emailAuthNo);
 
         // CODEF 성공 후 로컬 DB 갱신 (경쟁 상황 대비 유니크 재확인)
         if (userRepository.existsByEmail(newEmail)) {
@@ -274,7 +283,7 @@ public class AuthService {
         }
         user.setEmail(newEmail);
         userRepository.save(user);
-        log.info("이메일 변경 완료 - userId: {}", userId);
+        log.info("이메일 변경 완료 (step3) - userId: {}", userId);
     }
 
     // ── 비밀번호 변경 (CODEF 내보험다보여 + 로컬 DB 동시 갱신) ───────────
@@ -300,7 +309,8 @@ public class AuthService {
                 user.getCodefId(),
                 request.getPassword(),
                 bcryptHash,
-                user.getEmail());
+                user.getEmail(),
+                false);
     }
 
     /**
@@ -327,19 +337,12 @@ public class AuthService {
         log.info("비밀번호 변경 완료 (step3) - userId: {}", userId);
     }
 
-    // ── 비밀번호 찾기 (비인증) ──────────────────────────────────────────
+    // ── 비밀번호 찾기 (비인증, type="1" 흐름) ─────────────────────────
 
-    /** 비밀번호 찾기 1차: codefId로 사용자 조회 → CODEF SMS/PASS 인증 트리거 */
+    /** 비밀번호 찾기 1차: codefId로 사용자 조회 → CODEF SMS/PASS 인증 트리거 (비밀번호는 step4에서 입력) */
     public SignupStep1Response forgotPwdStep1(ForgotPwdStep1Request request) {
         User user = userRepository.findByCodefId(request.getCodefId())
                 .orElseThrow(() -> new SignupFieldException("codefId", "등록되지 않은 아이디입니다."));
-
-        if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            throw new SignupFieldException("passwordConfirm", "비밀번호가 일치하지 않습니다.");
-        }
-        validatePassword(request.getPassword(), user.getCodefId());
-
-        String bcryptHash = passwordEncoder.encode(request.getPassword());
 
         return codefService.changePwdStep1(
                 user.getId(),
@@ -349,9 +352,10 @@ public class AuthService {
                 request.getPhoneNo(),
                 request.getAuthMethod() != null ? request.getAuthMethod() : "0",
                 user.getCodefId(),
-                request.getPassword(),
-                bcryptHash,
-                user.getEmail());
+                null,
+                null,
+                user.getEmail(),
+                true);
     }
 
     /** 비밀번호 찾기 2차: SMS/PASS 인증 확인 */
@@ -359,14 +363,26 @@ public class AuthService {
         return codefService.changePwdStep2(request.getSessionKey(), request.getSmsAuthNo());
     }
 
-    /** 비밀번호 찾기 3차: 휴대폰 임시비번 확인 → CODEF 완료 + DB 갱신 (userId는 세션에서 조회) */
+    /** 비밀번호 찾기 3차: 휴대폰 임시비번 확인 → step4(새 비밀번호 입력) 대기 */
     public void forgotPwdStep3(String sessionKey, String tempPassword) {
-        Long userId = codefService.getChangeSessionUserId(sessionKey);
+        codefService.changePwdStep3(sessionKey, tempPassword);
+        // forgotPwd=true 흐름에서 changePwdStep3는 null 반환(step4 필요) 또는 예외
+    }
+
+    /** 비밀번호 찾기 4차: 새 비밀번호 검증 → CODEF 최종 완료 + DB 갱신 */
+    public void forgotPwdStep4(ForgotPwdStep4Request request) {
+        if (!request.getPassword().equals(request.getPasswordConfirm())) {
+            throw new SignupFieldException("passwordConfirm", "비밀번호가 일치하지 않습니다.");
+        }
+        Long userId = codefService.getChangeSessionUserId(request.getSessionKey());
         User user = getUserById(userId);
-        String bcryptHash = codefService.changePwdStep3(sessionKey, tempPassword);
+        validatePassword(request.getPassword(), user.getCodefId());
+
+        String bcryptHash = passwordEncoder.encode(request.getPassword());
+        codefService.changePwdStep4(request.getSessionKey(), request.getPassword(), bcryptHash);
         user.setPasswordHash(bcryptHash);
         userRepository.save(user);
-        log.info("비밀번호 찾기 완료 (step3) - userId: {}", userId);
+        log.info("비밀번호 찾기 완료 (step4) - userId: {}", userId);
     }
 
     // ── 유효성 검증 ───────────────────────────────────────────────────

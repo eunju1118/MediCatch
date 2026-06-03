@@ -4,6 +4,7 @@ import com.medicatch.user.dto.AuthResponse;
 import com.medicatch.user.dto.ChangeEmailRequest;
 import com.medicatch.user.dto.ChangePwdRequest;
 import com.medicatch.user.dto.ForgotPwdStep1Request;
+import com.medicatch.user.dto.ForgotPwdStep4Request;
 import com.medicatch.user.dto.LoginRequest;
 import com.medicatch.user.dto.SignupRequest;
 import com.medicatch.user.dto.SignupStep1Response;
@@ -22,6 +23,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -83,13 +85,8 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         log.info("POST /api/auth/login - codefId: {}", request.getCodefId());
-        try {
-            AuthResponse response = authService.login(request);
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            log.warn("Login failed: {}", e.getMessage());
-            throw e;
-        }
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -150,12 +147,33 @@ public class AuthController {
         return ResponseEntity.ok(authService.changeEmailStep1(userId, request));
     }
 
-    /** 이메일 변경 2단계: 인증번호 확인 → CODEF + 로컬 DB 갱신 */
+    /** 이메일 변경 2단계: SMS 인증 확인 → 이메일 인증번호 입력(step3) 필요 여부 반환 */
     @PostMapping("/change-email/step2")
-    public ResponseEntity<Map<String, String>> changeEmailStep2(@Valid @RequestBody SignupStep2Request request) {
+    public ResponseEntity<Map<String, Object>> changeEmailStep2(@Valid @RequestBody SignupStep2Request request) {
         Long userId = currentUserId();
         log.info("POST /api/auth/change-email/step2 - userId: {}", userId);
-        authService.changeEmailStep2(userId, request);
+        boolean needsStep3 = authService.changeEmailStep2(userId, request);
+        if (needsStep3) {
+            return ResponseEntity.ok(Map.of(
+                    "needsStep3", true,
+                    "message", "변경할 이메일 주소로 인증번호를 발송했습니다. 메일을 확인 후 입력해주세요.",
+                    "sessionKey", request.getSessionKey()
+            ));
+        }
+        return ResponseEntity.ok(Map.of("needsStep3", false, "message", "이메일이 변경되었습니다."));
+    }
+
+    /** 이메일 변경 3단계: 새 이메일로 받은 인증번호 확인 → CODEF 완료 + DB 갱신 */
+    @PostMapping("/change-email/step3")
+    public ResponseEntity<Map<String, String>> changeEmailStep3(@RequestBody Map<String, String> request) {
+        Long userId = currentUserId();
+        log.info("POST /api/auth/change-email/step3 - userId: {}", userId);
+        String sessionKey = request.get("sessionKey");
+        String emailAuthNo = request.get("emailAuthNo");
+        if (sessionKey == null || sessionKey.isBlank() || emailAuthNo == null || emailAuthNo.isBlank()) {
+            throw new IllegalArgumentException("sessionKey와 emailAuthNo가 필요합니다.");
+        }
+        authService.changeEmailStep3(userId, sessionKey, emailAuthNo);
         return ResponseEntity.ok(Map.of("message", "이메일이 변경되었습니다."));
     }
 
@@ -223,9 +241,9 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("needsStep3", false, "message", "비밀번호가 변경되었습니다."));
     }
 
-    /** 비밀번호 찾기 3차: 휴대폰 임시비번 확인 → CODEF 완료 + DB 갱신 */
+    /** 비밀번호 찾기 3차: 휴대폰 임시비번 확인 → step4(새 비밀번호 입력) 안내 */
     @PostMapping("/forgot-pwd/step3")
-    public ResponseEntity<Map<String, String>> forgotPwdStep3(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> forgotPwdStep3(@RequestBody Map<String, String> request) {
         log.info("POST /api/auth/forgot-pwd/step3");
         String sessionKey = request.get("sessionKey");
         String tempPassword = request.get("tempPassword");
@@ -233,6 +251,17 @@ public class AuthController {
             throw new IllegalArgumentException("sessionKey와 tempPassword가 필요합니다.");
         }
         authService.forgotPwdStep3(sessionKey, tempPassword);
+        return ResponseEntity.ok(Map.of(
+                "needsStep4", true,
+                "sessionKey", sessionKey,
+                "message", "임시비밀번호가 확인되었습니다. 새 비밀번호를 설정해주세요."));
+    }
+
+    /** 비밀번호 찾기 4차: 새 비밀번호 설정 → CODEF 최종 완료 + DB 갱신 */
+    @PostMapping("/forgot-pwd/step4")
+    public ResponseEntity<Map<String, String>> forgotPwdStep4(@Valid @RequestBody ForgotPwdStep4Request request) {
+        log.info("POST /api/auth/forgot-pwd/step4 - sessionKey: {}", request.getSessionKey());
+        authService.forgotPwdStep4(request);
         return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다."));
     }
 
@@ -273,5 +302,23 @@ public class AuthController {
         Map<String, Object> body = new HashMap<>();
         body.put("message", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /** 명시적 상태코드 예외(로그인 실패 401 등) → 해당 status + 사유 메시지 그대로 전달 */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException e) {
+        log.warn("요청 실패({}): {}", e.getStatusCode(), e.getReason());
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", e.getReason());
+        return ResponseEntity.status(e.getStatusCode()).body(body);
+    }
+
+    /** 그 외 예상치 못한 모든 예외(CODEF 통신 장애, DB 오류 등) → 500 */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception e) {
+        log.error("예상치 못한 서버 오류: {}", e.getMessage(), e);
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }
