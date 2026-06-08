@@ -142,7 +142,7 @@ const CheckupRecords = () => {
   const ageDelta = currentCheckup ? (currentCheckup.healthAge - currentCheckup.actualAge) : 0;
   const isYounger = ageDelta < 0;
   const cleanDigits = (value) => value.replace(/\D/g, '');
-  const normalOf = (category, fallback) => currentCheckup.results?.find((r) => r.category === category)?.normal || fallback;
+  const normalOf = (category, fallback) => currentCheckup?.results?.find((r) => r.category === category)?.normal || fallback;
 
   const handleVaccineAuthRequest = (e) => {
     e.preventDefault();
@@ -186,7 +186,7 @@ const CheckupRecords = () => {
       {/* 건강나이 카드 + 주요 지표 요약 */}
       <div className="mc-checkup-summary-grid">
         <div className={`mc-card mc-card-body mc-health-age-card ${isYounger ? 'mc-card-accent-success' : 'mc-card-accent-warning'}`}>
-          <BodyPreview bmi={currentCheckup.bmi} />
+          <BodyPreview bmi={currentCheckup?.bmi || 0} />
           <div className="mc-health-age-info">
             <div className="mc-field-label">건강나이</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
@@ -194,16 +194,16 @@ const CheckupRecords = () => {
                 fontSize: 36, fontWeight: 800, letterSpacing: '-0.5px',
                 color: isYounger ? '#3A7A62' : '#8A7040',
               }}>
-                {currentCheckup.healthAge}세
+                {currentCheckup?.healthAge != null ? `${currentCheckup.healthAge}세` : '-'}
               </div>
               <span className={`mc-tag ${isYounger ? 'mc-tag-success' : 'mc-tag-warning'}`}>
-                {ageDelta > 0 ? `+${ageDelta}세` : `${ageDelta}세`}
+                {currentCheckup ? (ageDelta > 0 ? `+${ageDelta}세` : `${ageDelta}세`) : '-'}
               </span>
             </div>
             <div className="mc-card-sub" style={{ marginTop: 8 }}>
-              실제나이 {currentCheckup.actualAge}세 · {selectedYear}년 기준
+              실제나이 {currentCheckup?.actualAge != null ? `${currentCheckup.actualAge}세` : '-'} · {selectedYear || '-'}년 기준
             </div>
-            {currentCheckup.riskFactors?.length > 0 && (
+            {currentCheckup?.riskFactors?.length > 0 && (
               <div className="mc-row-wrap" style={{ marginTop: 14 }}>
                 {currentCheckup.riskFactors.map((r) => (
                   <span key={r} className="mc-tag mc-tag-warning">
@@ -218,26 +218,26 @@ const CheckupRecords = () => {
         <div className="mc-grid-2">
           <div className="mc-card mc-card-body mc-metric-card">
             <div className="mc-field-label">혈압</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup.bloodPressure}</div>
+            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup?.bloodPressure || '-'}</div>
             <div className="mc-stat-sub">mmHg</div>
             <div className="mc-metric-tooltip">정상 기준: {normalOf('혈압', '120/80 미만')}</div>
           </div>
           <div className="mc-card mc-card-body mc-metric-card">
             <div className="mc-field-label">혈당</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup.bloodSugar}</div>
+            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup?.bloodSugar ?? '-'}</div>
             <div className="mc-stat-sub">mg/dL</div>
             <div className="mc-metric-tooltip">정상 기준: {normalOf('혈당', '100 미만')}</div>
           </div>
           <div className="mc-card mc-card-body mc-metric-card">
             <div className="mc-field-label">콜레스테롤</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup.cholesterol}</div>
+            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup?.cholesterol ?? '-'}</div>
             <div className="mc-stat-sub">mg/dL</div>
             <div className="mc-metric-tooltip">정상 기준: {normalOf('콜레스테롤', '200 미만')}</div>
           </div>
           <div className="mc-card mc-card-body mc-metric-card">
             <div className="mc-field-label">BMI</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup.bmi}</div>
-            <div className="mc-stat-sub">{currentCheckup.height}cm · {currentCheckup.weight}kg</div>
+            <div className="mc-stat-value" style={{ marginTop: 4 }}>{currentCheckup?.bmi ?? '-'}</div>
+            <div className="mc-stat-sub">{currentCheckup?.height || '-'}cm · {currentCheckup?.weight || '-'}kg</div>
             <div className="mc-metric-tooltip">정상 기준: {normalOf('BMI', '18.5~24.9')}</div>
           </div>
         </div>
@@ -260,7 +260,7 @@ const CheckupRecords = () => {
       </div>
 
       {/* 검사 결과 테이블 */}
-      {currentCheckup.results.length > 0 && (
+      {currentCheckup?.results?.length > 0 && (
         <>
           <div className="mc-sec-head" style={{ marginTop: 18 }}>
             <span className="mc-sec-title">검사 결과</span>
@@ -387,7 +387,7 @@ const CheckupRecords = () => {
             <aside className="mc-vaccine-recommend-panel">
               <div className="mc-vaccine-recommend-head">
                 <div className="mc-vaccine-recommend-title">권장 예방접종 체크</div>
-                <div className="mc-vaccine-recommend-kicker">{currentCheckup.actualAge}세 기준 추천</div>
+                <div className="mc-vaccine-recommend-kicker">{currentCheckup?.actualAge != null ? `${currentCheckup.actualAge}세 기준 추천` : '연령 기준 추천'}</div>
               </div>
               <div className="mc-vaccine-recommend-list">
                 <div><b>독감</b><span>매년 1회 접종 권장</span></div>
@@ -475,7 +475,7 @@ const CheckupRecords = () => {
               <aside className="mc-vaccine-recommend-panel">
                 <div className="mc-vaccine-recommend-head">
                   <div className="mc-vaccine-recommend-title">권장 예방접종 체크</div>
-                  <div className="mc-vaccine-recommend-kicker">{currentCheckup.actualAge}세 기준 추천</div>
+                  <div className="mc-vaccine-recommend-kicker">{currentCheckup?.actualAge != null ? `${currentCheckup.actualAge}세 기준 추천` : '연령 기준 추천'}</div>
                 </div>
                 <div className="mc-vaccine-recommend-list">
                   <div><b>독감</b><span>매년 1회 접종 권장</span></div>
@@ -495,22 +495,11 @@ const CheckupRecords = () => {
               </tr>
             </thead>
             <tbody>
-              {VACCINATION_DATA.map((vacc, idx) => (
-                <tr key={idx}>
-                  <td style={{ fontWeight: 600 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-1)' }}>
-                      <Ic d={P.syringe} size={12}/> {vacc.name}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`mc-tag ${vacc.status ? 'mc-tag-success' : 'mc-tag-warning'}`}>
-                      <Ic d={vacc.status ? P.check : P.x} size={10}/>
-                      {vacc.status ? ' 접종 완료' : ' 미접종'}
-                    </span>
-                  </td>
-                  <td style={{ color: 'var(--text-2)' }}>{vacc.date || '-'}</td>
-                </tr>
-              ))}
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-3)', padding: 20 }}>
+                  연동된 예방접종 내역이 없습니다.
+                </td>
+              </tr>
             </tbody>
           </table>
         )}
