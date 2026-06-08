@@ -360,11 +360,13 @@ const HealthReport = () => {
               <span className="mc-sec-title">건강 MBTI</span>
             </div>
             <div className="mc-card mc-health-mbti-card">
-              <div className="mc-health-mbti-orb">{mbtiResult ? mbtiResult.type : 'MB'}</div>
+              <div className="mc-health-mbti-orb">{mbtiResult ? mbtiResult.type : 'MBTI'}</div>
               <div className="mc-health-mbti-body">
-                <div className="mc-health-mbti-kicker">생활습관 설문</div>
-                <div className="mc-health-mbti-title">나의 건강 타입</div>
-                <p>{mbtiResult ? `${mbtiResult.title} · ${mbtiResult.summary}` : '식습관, 활동량, 수면 리듬을 선택하고 나의 건강 타입을 확인해보세요.'}</p>
+                <div className="mc-health-mbti-copy">
+                  <div className="mc-health-mbti-kicker">생활습관 설문</div>
+                  <div className="mc-health-mbti-title">나의 건강 타입</div>
+                  <p>{mbtiResult ? `${mbtiResult.title} · ${mbtiResult.summary}` : '식습관, 활동량, 수면 리듬을 선택하고 나의 건강 타입을 확인해보세요.'}</p>
+                </div>
                 <button className="mc-btn mc-btn-primary" type="button" onClick={openMbtiSurvey}>
                   {mbtiResult ? '결과 다시 보기' : '설문 시작하기'}
                 </button>
