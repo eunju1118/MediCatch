@@ -139,15 +139,7 @@ const CheckupRecords = () => {
   }, []);
 
   const currentCheckup = checkups.find((c) => c.year === selectedYear) || checkups[0];
-  if (!currentCheckup) return (
-    <div className="mc-page fade-in">
-      <div className="mc-page-top"><div><div className="mc-page-title">건강검진 기록</div></div></div>
-      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
-        {loading ? '불러오는 중...' : '건강검진 기록이 없어요. 데이터 연동 후 확인해주세요.'}
-      </div>
-    </div>
-  );
-  const ageDelta = currentCheckup.healthAge - currentCheckup.actualAge;
+  const ageDelta = currentCheckup ? (currentCheckup.healthAge - currentCheckup.actualAge) : 0;
   const isYounger = ageDelta < 0;
   const cleanDigits = (value) => value.replace(/\D/g, '');
   const normalOf = (category, fallback) => currentCheckup.results?.find((r) => r.category === category)?.normal || fallback;
