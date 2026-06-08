@@ -145,8 +145,33 @@ public class InsuranceService {
 
         Map<String, Object> summary = new HashMap<>();
         summary.put("codefId", codefId);
+        return buildSummary(summary, activePolicies);
+    }
+
+    /**
+     * Get insurance summary for user by userId (X-User-Id header)
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getInsuranceSummaryByUserId(Long userId) {
+        log.info("Getting insurance summary for userId: {}", userId);
+
+        List<Policy> activePolicies = getActivePolicies(userId);
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("userId", userId);
+        return buildSummary(summary, activePolicies);
+    }
+
+    private Map<String, Object> buildSummary(Map<String, Object> summary, List<Policy> activePolicies) {
         summary.put("activePolicyCount", activePolicies.size());
         summary.put("policies", activePolicies);
+
+        // 월 보험료 합계 계산
+        double totalMonthlyPremium = activePolicies.stream()
+                .filter(p -> p.getMonthlyPremium() != null)
+                .mapToDouble(p -> p.getMonthlyPremium().doubleValue())
+                .sum();
+        summary.put("totalMonthlyPremium", totalMonthlyPremium);
 
         if (!activePolicies.isEmpty()) {
             Policy primaryPolicy = activePolicies.get(0);

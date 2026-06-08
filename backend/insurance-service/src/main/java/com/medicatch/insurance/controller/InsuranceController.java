@@ -136,10 +136,19 @@ public class InsuranceController {
      * Get insurance summary for user
      */
     @GetMapping("/summary")
-    public ResponseEntity<Map<String, Object>> getInsuranceSummary(@RequestParam String codefId) {
-        log.info("GET /api/insurance/summary - codefId: {}", codefId);
+    public ResponseEntity<Map<String, Object>> getInsuranceSummary(
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestParam(value = "codefId", required = false) String codefId) {
+        log.info("GET /api/insurance/summary - userId: {}, codefId: {}", userIdHeader, codefId);
         try {
-            Map<String, Object> summary = insuranceService.getInsuranceSummary(codefId);
+            Map<String, Object> summary;
+            if (userIdHeader != null && !userIdHeader.isBlank()) {
+                summary = insuranceService.getInsuranceSummaryByUserId(Long.parseLong(userIdHeader));
+            } else if (codefId != null && !codefId.isBlank()) {
+                summary = insuranceService.getInsuranceSummary(codefId);
+            } else {
+                return ResponseEntity.badRequest().build();
+            }
             return ResponseEntity.ok(summary);
         } catch (Exception e) {
             log.error("Error getting insurance summary: {}", e.getMessage(), e);
