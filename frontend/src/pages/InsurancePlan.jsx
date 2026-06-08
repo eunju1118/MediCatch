@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts';
-import { analysisAPI, insuranceAPI } from '../api/services';
+import { insuranceAPI } from '../api/services';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -27,25 +27,55 @@ const formatCurrency = (amount) => {
   return new Intl.NumberFormat('ko-KR').format(amount || 0) + '원';
 };
 
+const toNumber = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// coverage-comparison API 응답(자가보장액 vs 평균그룹)을 화면용 gap 항목으로 변환
+const comparisonToGap = (row) => {
+  const current = toNumber(row.selfCoverageAmount ?? row.self_coverage_amount);
+  const average = toNumber(row.avgGroupCoverageAmount ?? row.avg_group_coverage_amount);
+  const hasAverage = average > 0;
+  const gap = hasAverage ? Math.max(average - current, 0) : 0;
+  let riskGrade;
+  if (current <= 0) riskGrade = 'HIGH';            // 미보유
+  else if (!hasAverage) riskGrade = 'NORMAL';      // 비교 불가
+  else if (current >= average) riskGrade = 'NORMAL';
+  else if (current >= average * 0.7) riskGrade = 'LOW';
+  else riskGrade = 'MEDIUM';
+  return {
+    category: row.coverageName || row.coverage_name || '보장명 정보 없음',
+    current,
+    recommended: hasAverage ? average : current,
+    gap,
+    riskGrade,
+  };
+};
+
 const InsurancePlan = () => {
   const navigate = useNavigate();
   const [gaps, setGaps] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [policies, setPolicies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [priorityTip, setPriorityTip] = useState({ visible: false, x: 0, y: 0 });
 
   useEffect(() => {
     const fetchPlan = async () => {
       setLoading(true);
       try {
-        const [gapData, summaryData] = await Promise.allSettled([
-          analysisAPI.getCoverageGap(),
-          insuranceAPI.getSummary(),
+        const [comparisonRows, policyRows] = await Promise.all([
+          insuranceAPI.getCoverageComparison(),
+          insuranceAPI.getPolicies(),
         ]);
-        if (gapData.status === 'fulfilled' && Array.isArray(gapData.value)) setGaps(gapData.value);
-        if (summaryData.status === 'fulfilled') setSummary(summaryData.value);
+        const mapped = Array.isArray(comparisonRows) ? comparisonRows.map(comparisonToGap) : [];
+        setGaps(mapped);
+        setPolicies(Array.isArray(policyRows) ? policyRows : []);
       } catch (error) {
         console.error('Failed to fetch plan:', error);
+        setGaps([]);
+        setPolicies([]);
       } finally {
         setLoading(false);
       }
@@ -53,21 +83,25 @@ const InsurancePlan = () => {
     fetchPlan();
   }, []);
 
-  const currentPremium = summary?.totalMonthlyPremium ?? summary?.monthlyPremium ?? null;
-  const peerAveragePremium = summary?.peerAveragePremium ?? null;
-  const premiumDiff = (currentPremium != null && peerAveragePremium != null) ? currentPremium - peerAveragePremium : null;
-
+  // 보장 점수: 평균 대비 충족 비율
+  const comparable = gaps.filter((g) => g.recommended > 0);
+  const score = comparable.length
+    ? Math.round(comparable.reduce((sum, g) => sum + Math.min((g.current / g.recommended) * 100, 100), 0) / comparable.length)
+    : 0;
+  const gapCount = gaps.filter((g) => g.gap > 0).length;
+  const highRiskGapCount = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH').length;
+  const totalGapAmount = gaps.reduce((sum, g) => sum + (g.gap || 0), 0);
+  const highRiskItems = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH');
+  // 월 보험료: 활성 보험 합계
+  const currentPremium = policies
+    .filter((p) => p.isActive === true || p.is_active === true || ['정상','계약부활','ACTIVE'].includes(p.status || p.contractStatus || ''))
+    .reduce((sum, p) => sum + toNumber(p.monthlyPremium ?? p.monthly_premium), 0);
   const chartData = gaps.map((g) => ({
     category: g.category,
     current: Math.round((g.current || 0) / 1000000),
     recommended: Math.round((g.recommended || 0) / 1000000),
   }));
-  const gapCount = gaps.filter((g) => g.gap > 0).length;
-  const highRiskGapCount = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH').length;
-  const totalGapAmount = gaps.reduce((sum, g) => sum + (g.gap || 0), 0);
-  const highRiskItems = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH');
-  // 보장 점수: 공백 없는 항목 비율 기반 계산
-  const score = gaps.length ? Math.round((gaps.filter((g) => !g.gap || g.gap === 0).length / gaps.length) * 100) : 0;
+  const peerAveragePremium = null;
   const movePriorityTip = (event) => {
     setPriorityTip({ visible: true, x: event.clientX, y: event.clientY });
   };
@@ -94,27 +128,30 @@ const InsurancePlan = () => {
       {/* 점수 카드 + 요약 2열 */}
       <div className="mc-two-col mc-insurance-summary-row" style={{ gridTemplateColumns: '360px 1fr' }}>
         <div className="mc-card mc-card-body mc-coverage-score-card" style={{
-          background: 'linear-gradient(135deg, #1E55C4 0%, #2F6FE8 100%)',
-          color: '#fff', borderColor: 'transparent',
+          background: 'linear-gradient(145deg, rgba(255,255,255,.88) 0%, rgba(239,247,255,.72) 54%, rgba(220,238,255,.52) 100%)',
+          color: '#17324d',
+          borderColor: 'rgba(157, 190, 230, .42)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.9), 0 18px 38px rgba(47,111,232,.10)',
+          backdropFilter: 'blur(12px)',
         }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-            textTransform: 'uppercase', opacity: 0.85,
+            textTransform: 'uppercase', color: '#48739f',
           }}>
             <Ic d={P.shield} size={12}/> 보장 점수
           </div>
           <div style={{
             fontSize: 44, fontWeight: 800, letterSpacing: '-1px',
-            marginTop: 8, lineHeight: 1,
+            marginTop: 8, lineHeight: 1, color: '#2F6F5C',
           }}>
             {score}<span style={{ fontSize: 22, fontWeight: 600, marginLeft: 4 }}>/ 100</span>
           </div>
-          <div style={{ fontSize: 12.5, marginTop: 8, opacity: 0.9 }}>
+          <div style={{ fontSize: 12.5, marginTop: 8, color: '#5f7891', fontWeight: 650 }}>
             현재 보장 수준 · 보장 공백 {gapCount}개 발견
           </div>
-          <div className="mc-pbar" style={{ marginTop: 14, background: 'rgba(255,255,255,0.2)' }}>
-            <div className="mc-pbar-fill" style={{ width: `${score}%`, background: '#fff' }}/>
+          <div className="mc-pbar" style={{ marginTop: 14, background: 'rgba(91, 147, 204, .16)' }}>
+            <div className="mc-pbar-fill" style={{ width: `${score}%`, background: 'linear-gradient(90deg, rgba(47,111,232,.58), rgba(112,174,152,.72))' }}/>
           </div>
         </div>
 
@@ -122,7 +159,7 @@ const InsurancePlan = () => {
           <div className="mc-card mc-card-body">
             <div className="mc-field-label">현재 월 보험료</div>
             <div className="mc-stat-value" style={{ marginTop: 4 }}>
-              {currentPremium != null ? formatCurrency(currentPremium) : '-'}
+              {currentPremium > 0 ? formatCurrency(currentPremium) : '-'}
             </div>
             <div className="mc-stat-sub">매월 납입 중</div>
           </div>
@@ -156,12 +193,9 @@ const InsurancePlan = () => {
             <div className="mc-row-between">
               <div>
                 <div className="mc-field-label">또래 평균 보험료</div>
-                <div className="mc-stat-value" style={{ marginTop: 4 }}>
-                  {peerAveragePremium != null ? formatCurrency(peerAveragePremium) : '-'}
-                </div>
-                <div className="mc-stat-sub mc-peer-age-sub">40대 기준</div>
+                <div className="mc-stat-value" style={{ marginTop: 4 }}>-</div>
+                <div className="mc-stat-sub mc-peer-age-sub">데이터 준비 중</div>
               </div>
-              {premiumDiff != null && <span className={`mc-tag ${premiumDiff >= 0 ? 'mc-tag-warning' : 'mc-tag-success'}`}>평균 대비 {premiumDiff >= 0 ? '+' : '-'}{formatCurrency(Math.abs(premiumDiff))}</span>}
             </div>
           </div>
         </div>
@@ -177,7 +211,6 @@ const InsurancePlan = () => {
           }}
           role="tooltip"
         >
-          <div className="mc-priority-floating-title">마우스 위치 기준 안내</div>
           {highRiskItems.map((item) => (
             <div className="mc-priority-floating-row" key={item.category}>
               <span>{item.category}</span>
@@ -224,7 +257,7 @@ const InsurancePlan = () => {
       <div className="mc-stack-sm">
         {gaps.length === 0 && (
           <div className="mc-card mc-card-body" style={{ textAlign: 'center', color: 'var(--text-3)' }}>
-            {loading ? '보장 공백 분석 중…' : '분석된 보장 공백이 없어요. 보험 데이터를 연동하면 표시됩니다.'}
+            {loading ? '보장 공백 분석 중…' : '보험 보장 비교 데이터가 없어요. 보험을 연동하면 표시됩니다.'}
           </div>
         )}
         {gaps.map((gap, idx) => {
