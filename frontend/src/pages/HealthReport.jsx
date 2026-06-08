@@ -3,7 +3,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Legend, BarChart, Bar,
 } from 'recharts';
-import { analysisAPI } from '../api/services';
+import { analysisAPI, healthAPI } from '../api/services';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -25,28 +25,6 @@ const P = {
 
 
 
-
-const MOCK_RISK_TREND = [
-  { year: '2023', stroke: 8,  diabetes: 20, cardio: 10 },
-  { year: '2024', stroke: 10, diabetes: 25, cardio: 12 },
-  { year: '2025', stroke: 12, diabetes: 28, cardio: 15 },
-];
-
-const MOCK_STATS = {
-  visitCount: 8,
-  checkupCount: 2,
-  riskStatus: '주의',
-  completedVaccines: 3,
-  topHospital: '서울성모병원',
-  topDepartment: '내과',
-  lastCheckup: '2026-03-15',
-};
-
-const CHECKUP_TREND_DATA = [
-  { year: '2023', bloodPressure: 135, bloodSugar: 105, cholesterol: 220 },
-  { year: '2024', bloodPressure: 132, bloodSugar: 102, cholesterol: 228 },
-  { year: '2025', bloodPressure: 128, bloodSugar: 98, cholesterol: 215 },
-];
 
 
 const HEALTH_MBTI_QUESTIONS = [
@@ -196,8 +174,12 @@ const getHealthMbtiResult = (answers) => {
 
 
 const HealthReport = () => {
-  const [riskTrend, setRiskTrend] = useState(MOCK_RISK_TREND);
-  const [stats, setStats] = useState(MOCK_STATS);
+  const [riskTrend, setRiskTrend] = useState([]);
+  const [checkupTrend, setCheckupTrend] = useState([]);
+  const [stats, setStats] = useState({
+    visitCount: null, checkupCount: null, riskStatus: '-',
+    completedVaccines: null, topHospital: '-', topDepartment: '-', lastCheckup: '-',
+  });
   const [loading, setLoading] = useState(false);
   const [showMbtiModal, setShowMbtiModal] = useState(false);
   const [mbtiStep, setMbtiStep] = useState(0);
@@ -208,20 +190,48 @@ const HealthReport = () => {
     const fetchReport = async () => {
       setLoading(true);
       try {
-        const data = await analysisAPI.getHealthReport();
-        if (data?.riskTrend) setRiskTrend(data.riskTrend);
-        if (data?.stats) {
-          setStats((prev) => ({
-            ...prev,
-            visitCount: data.stats.visitCount ?? data.stats.visit_count ?? prev.visitCount,
-            checkupCount: data.stats.checkupCount ?? data.stats.checkup_count ?? prev.checkupCount,
-            riskStatus: data.stats.riskStatus ?? data.stats.risk_status ?? prev.riskStatus,
-            completedVaccines: data.stats.completedVaccines ?? data.stats.completed_vaccines ?? prev.completedVaccines,
-            topHospital: data.stats.topHospital ?? data.stats.top_hospital ?? prev.topHospital,
-            topDepartment: data.stats.topDepartment ?? data.stats.top_department ?? prev.topDepartment,
-            lastCheckup: data.stats.lastCheckup ?? data.stats.last_checkup ?? prev.lastCheckup,
-          }));
+        const [records, checkups, predictions] = await Promise.allSettled([
+          healthAPI.getMedicalRecords(),
+          healthAPI.getCheckupResults(),
+          healthAPI.getDiseasePredictions(),
+        ]);
+
+        const recordList = records.status === 'fulfilled' && Array.isArray(records.value) ? records.value : [];
+        const checkupList = checkups.status === 'fulfilled' && Array.isArray(checkups.value) ? checkups.value : [];
+        const predictionList = predictions.status === 'fulfilled' && Array.isArray(predictions.value) ? predictions.value : [];
+
+        // 위험도 추이: 질병 예측에서 연도별 데이터가 있으면 사용
+        if (predictionList.length) {
+          const hasHigh = predictionList.some((p) => p.riskGrade === 'HIGH');
+          const hasMed = predictionList.some((p) => p.riskGrade === 'MEDIUM');
+          setStats((prev) => ({ ...prev, riskStatus: hasHigh ? '위험' : hasMed ? '주의' : '양호' }));
         }
+
+        // 검진 추이: 검진 결과에서 혈압/혈당/콜레스테롤
+        if (checkupList.length) {
+          setCheckupTrend(checkupList.map((c) => ({
+            year: String(c.year || c.checkupDate || ''),
+            bloodPressure: parseInt(c.bloodPressureSystolic || c.bloodPressure) || 0,
+            bloodSugar: c.bloodSugar || c.fastingBloodSugar || 0,
+            cholesterol: c.totalCholesterol || c.cholesterol || 0,
+          })));
+        }
+
+        // 통계
+        const hospitalCounts = {};
+        recordList.forEach((r) => {
+          const h = r.hospitalName || r.hospital;
+          if (h) hospitalCounts[h] = (hospitalCounts[h] || 0) + 1;
+        });
+        const topHospital = Object.keys(hospitalCounts).sort((a, b) => hospitalCounts[b] - hospitalCounts[a])[0];
+
+        setStats((prev) => ({
+          ...prev,
+          visitCount: recordList.length,
+          checkupCount: checkupList.length,
+          topHospital: topHospital || '-',
+          lastCheckup: checkupList[0]?.checkupDate || checkupList[0]?.year || '-',
+        }));
       } catch (error) {
         console.error('Failed to fetch report:', error);
       } finally {
@@ -280,12 +290,12 @@ const HealthReport = () => {
       <div className="mc-stats-strip">
         <div className="mc-stat">
           <div className="mc-stat-label">진료 방문</div>
-          <div className="mc-stat-value">{stats.visitCount}회</div>
+          <div className="mc-stat-value">{stats.visitCount != null ? `${stats.visitCount}회` : '-'}</div>
           <div className="mc-stat-sub">최근 12개월</div>
         </div>
         <div className="mc-stat">
           <div className="mc-stat-label">건강검진</div>
-          <div className="mc-stat-value">{stats.checkupCount}건</div>
+          <div className="mc-stat-value">{stats.checkupCount != null ? `${stats.checkupCount}건` : '-'}</div>
           <div className="mc-stat-sub">최근 검진 {stats.lastCheckup}</div>
         </div>
         <div className="mc-stat">
@@ -295,7 +305,7 @@ const HealthReport = () => {
         </div>
         <div className="mc-stat">
           <div className="mc-stat-label">예방접종</div>
-          <div className="mc-stat-value">{stats.completedVaccines}건</div>
+          <div className="mc-stat-value">{stats.completedVaccines != null ? `${stats.completedVaccines}건` : '-'}</div>
           <div className="mc-stat-sub">접종 완료 기록</div>
         </div>
       </div>
@@ -307,7 +317,7 @@ const HealthReport = () => {
       <div className="mc-card mc-card-body">
         <div className="mc-chart-wrap">
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={CHECKUP_TREND_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={checkupTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EBEEF4"/>
               <XAxis dataKey="year" tick={{ fill: '#4A5568', fontSize: 11 }} axisLine={{ stroke: '#DDE1EA' }}/>
               <YAxis tick={{ fill: '#9AA3B2', fontSize: 11 }} axisLine={{ stroke: '#DDE1EA' }}/>

@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts';
-import { analysisAPI } from '../api/services';
+import { analysisAPI, insuranceAPI } from '../api/services';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -16,22 +16,6 @@ const P = {
   chat:    (<><path d="M2 2h12v9H9l-3 3v-3H2V2z"/><path d="M5 6h6M5 8.5h4"/></>),
   shield:  (<path d="M8 1.5l5.5 2v4.5C13.5 11.5 8 14.5 8 14.5S2.5 11.5 2.5 8V3.5L8 1.5z"/>),
 };
-
-const MOCK_GAPS = [
-  { category: '암 보장',      current: 30000000, recommended: 50000000, gap: 20000000, riskGrade: 'HIGH' },
-  { category: '뇌질환 보장',  current: 0,        recommended: 20000000, gap: 20000000, riskGrade: 'HIGH' },
-  { category: '심혈관 보장',  current: 0,        recommended: 20000000, gap: 20000000, riskGrade: 'MEDIUM' },
-  { category: '입원 일당',    current: 30000,    recommended: 50000,    gap: 20000,    riskGrade: 'LOW' },
-  { category: '치아 보장',    current: 2000000,  recommended: 2000000,  gap: 0,        riskGrade: 'NORMAL' },
-];
-
-const CHART_DATA = [
-  { category: '암 보장',     current: 30, recommended: 50 },
-  { category: '뇌질환 보장', current: 0,  recommended: 20 },
-  { category: '심혈관 보장', current: 0,  recommended: 20 },
-  { category: '입원 일당',   current: 30, recommended: 50 },
-  { category: '치아 보장',   current: 2,  recommended: 2 },
-];
 
 const RISK_LABEL = { HIGH: '높음', MEDIUM: '중간', LOW: '낮음', NORMAL: '정상' };
 const RISK_TAG   = { HIGH: 'mc-tag-danger', MEDIUM: 'mc-tag-warning', LOW: 'mc-tag-blue', NORMAL: 'mc-tag-success' };
@@ -45,7 +29,8 @@ const formatCurrency = (amount) => {
 
 const InsurancePlan = () => {
   const navigate = useNavigate();
-  const [gaps, setGaps] = useState(MOCK_GAPS);
+  const [gaps, setGaps] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [priorityTip, setPriorityTip] = useState({ visible: false, x: 0, y: 0 });
 
@@ -53,10 +38,12 @@ const InsurancePlan = () => {
     const fetchPlan = async () => {
       setLoading(true);
       try {
-        const gapData = await analysisAPI.getCoverageGap();
-        if (Array.isArray(gapData) && gapData.length) {
-          setGaps(gapData);
-        }
+        const [gapData, summaryData] = await Promise.allSettled([
+          analysisAPI.getCoverageGap(),
+          insuranceAPI.getSummary(),
+        ]);
+        if (gapData.status === 'fulfilled' && Array.isArray(gapData.value)) setGaps(gapData.value);
+        if (summaryData.status === 'fulfilled') setSummary(summaryData.value);
       } catch (error) {
         console.error('Failed to fetch plan:', error);
       } finally {
@@ -66,14 +53,21 @@ const InsurancePlan = () => {
     fetchPlan();
   }, []);
 
-  const score = 73;
-  const currentPremium = 297000;
+  const currentPremium = summary?.totalMonthlyPremium ?? summary?.monthlyPremium ?? null;
+  const peerAveragePremium = summary?.peerAveragePremium ?? null;
+  const premiumDiff = (currentPremium != null && peerAveragePremium != null) ? currentPremium - peerAveragePremium : null;
+
+  const chartData = gaps.map((g) => ({
+    category: g.category,
+    current: Math.round((g.current || 0) / 1000000),
+    recommended: Math.round((g.recommended || 0) / 1000000),
+  }));
   const gapCount = gaps.filter((g) => g.gap > 0).length;
   const highRiskGapCount = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH').length;
   const totalGapAmount = gaps.reduce((sum, g) => sum + (g.gap || 0), 0);
   const highRiskItems = gaps.filter((g) => g.gap > 0 && g.riskGrade === 'HIGH');
-  const peerAveragePremium = 241000;
-  const premiumDiff = currentPremium - peerAveragePremium;
+  // 보장 점수: 공백 없는 항목 비율 기반 계산
+  const score = gaps.length ? Math.round((gaps.filter((g) => !g.gap || g.gap === 0).length / gaps.length) * 100) : 0;
   const movePriorityTip = (event) => {
     setPriorityTip({ visible: true, x: event.clientX, y: event.clientY });
   };
@@ -128,7 +122,7 @@ const InsurancePlan = () => {
           <div className="mc-card mc-card-body">
             <div className="mc-field-label">현재 월 보험료</div>
             <div className="mc-stat-value" style={{ marginTop: 4 }}>
-              {formatCurrency(currentPremium)}
+              {currentPremium != null ? formatCurrency(currentPremium) : '-'}
             </div>
             <div className="mc-stat-sub">매월 납입 중</div>
           </div>
@@ -163,11 +157,11 @@ const InsurancePlan = () => {
               <div>
                 <div className="mc-field-label">또래 평균 보험료</div>
                 <div className="mc-stat-value" style={{ marginTop: 4 }}>
-                  {formatCurrency(peerAveragePremium)}
+                  {peerAveragePremium != null ? formatCurrency(peerAveragePremium) : '-'}
                 </div>
                 <div className="mc-stat-sub mc-peer-age-sub">40대 기준</div>
               </div>
-              <span className={`mc-tag ${premiumDiff >= 0 ? 'mc-tag-warning' : 'mc-tag-success'}`}>평균 대비 {premiumDiff >= 0 ? '+' : '-'}{formatCurrency(Math.abs(premiumDiff))}</span>
+              {premiumDiff != null && <span className={`mc-tag ${premiumDiff >= 0 ? 'mc-tag-warning' : 'mc-tag-success'}`}>평균 대비 {premiumDiff >= 0 ? '+' : '-'}{formatCurrency(Math.abs(premiumDiff))}</span>}
             </div>
           </div>
         </div>
@@ -200,7 +194,7 @@ const InsurancePlan = () => {
       <div className="mc-card mc-card-body">
         <div className="mc-chart-wrap">
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={CHART_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EBEEF4"/>
               <XAxis
                 dataKey="category" interval={0}
@@ -228,6 +222,11 @@ const InsurancePlan = () => {
         <span className="mc-sec-title">보장 공백 상세</span>
       </div>
       <div className="mc-stack-sm">
+        {gaps.length === 0 && (
+          <div className="mc-card mc-card-body" style={{ textAlign: 'center', color: 'var(--text-3)' }}>
+            {loading ? '보장 공백 분석 중…' : '분석된 보장 공백이 없어요. 보험 데이터를 연동하면 표시됩니다.'}
+          </div>
+        )}
         {gaps.map((gap, idx) => {
           const pct = gap.recommended
             ? Math.min((gap.current / gap.recommended) * 100, 100)

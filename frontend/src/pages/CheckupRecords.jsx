@@ -205,7 +205,7 @@ const CheckupRecords = () => {
             </div>
             {currentCheckup?.riskFactors?.length > 0 && (
               <div className="mc-row-wrap" style={{ marginTop: 14 }}>
-                {currentCheckup.riskFactors.map((r) => (
+                {(currentCheckup?.riskFactors || []).map((r) => (
                   <span key={r} className="mc-tag mc-tag-warning">
                     <Ic d={P.warn} size={10}/> {r}
                   </span>
@@ -334,7 +334,7 @@ const CheckupRecords = () => {
               </div>
 
               <div className="mc-card-sub" style={{ marginTop: 10 }}>
-                위험요인: {d.riskFactors.join(', ')}
+                위험요인: {(d.riskFactors || []).join(', ') || '-'}
               </div>
             </div>
           );

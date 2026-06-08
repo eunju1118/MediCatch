@@ -3139,6 +3139,14 @@ body::before {
   }
   html,
   body,
+  #root,
+  * {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html,
+  body,
   #root {
     background: #fff !important;
     color: #0f172a !important;
