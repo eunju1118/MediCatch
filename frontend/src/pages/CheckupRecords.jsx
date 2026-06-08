@@ -37,47 +37,7 @@ const PHONE_AUTH_TYPES = [
   { value: 'pass', label: 'PASS' },
 ];
 
-const MOCK_CHECKUPS = [
-  { year: 2025, healthAge: 38, actualAge: 42, height: 172, weight: 78, bmi: 26.4,
-    bloodPressure: '128/82', bloodSugar: 98, cholesterol: 215,
-    riskFactors: ['복부비만', '경계성 혈압'],
-    results: [
-      { category: '혈압',       value: '128/82',    status: 'WARNING', normal: '120/80 미만' },
-      { category: '혈당',       value: '98 mg/dL',  status: 'NORMAL',  normal: '100 미만' },
-      { category: '콜레스테롤', value: '215 mg/dL', status: 'WARNING', normal: '200 미만' },
-      { category: 'BMI',        value: '26.4',      status: 'WARNING', normal: '18.5~24.9' },
-    ],
-  },
-  { year: 2024, healthAge: 40, actualAge: 41, height: 172, weight: 80, bmi: 27.0,
-    bloodPressure: '132/85', bloodSugar: 102, cholesterol: 228,
-    riskFactors: ['복부비만', '경계성 혈압', '경계성 혈당'],
-    results: [
-      { category: '혈압',       value: '132/85',     status: 'WARNING', normal: '120/80 미만' },
-      { category: '혈당',       value: '102 mg/dL',  status: 'WARNING', normal: '100 미만' },
-      { category: '콜레스테롤', value: '228 mg/dL',  status: 'WARNING', normal: '200 미만' },
-      { category: 'BMI',        value: '27.0',       status: 'WARNING', normal: '18.5~24.9' },
-    ],
-  },
-];
 
-const MOCK_DISEASES = [
-  { type: '뇌졸중',   riskGrade: 'LOW',    myRisk: 18.5, populationAvg: 15.2, riskFactors: ['고혈압 경계', '흡연력'] },
-  { type: '당뇨',     riskGrade: 'MEDIUM', myRisk: 28.5, populationAvg: 18.8, riskFactors: ['복부비만', '경계성 혈당', '가족력'] },
-  { type: '심뇌혈관', riskGrade: 'LOW',    myRisk: 20.3, populationAvg: 16.5, riskFactors: ['고혈압 경계'] },
-];
-
-const MOCK_TARGETS = [
-  { name: '위암검진',   dueDate: '2026-06', status: 'DUE' },
-  { name: '대장암검진', dueDate: '2026-06', status: 'DUE' },
-  { name: '구강검진',   dueDate: '2026-06', status: 'OVERDUE' },
-];
-
-const VACCINATION_DATA = [
-  { name: '독감',       status: true,  date: '2025-10-15' },
-  { name: '폐렴구균',   status: true,  date: '2025-09-20' },
-  { name: '코로나',     status: true,  date: '2025-04-10' },
-  { name: 'B형간염',    status: false, date: null },
-];
 
 
 const STATUS_LABEL = { NORMAL: '정상', WARNING: '주의', DANGER: '경고' };
@@ -135,9 +95,9 @@ const BodyPreview = ({ bmi }) => {
 };
 
 const CheckupRecords = () => {
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [checkups, setCheckups] = useState(MOCK_CHECKUPS);
-  const [diseases] = useState(MOCK_DISEASES);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [checkups, setCheckups] = useState([]);
+  const [diseases, setDiseases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [vaccineAuth, setVaccineAuth] = useState(false);
   const [vaccineAuthStarted, setVaccineAuthStarted] = useState(false);
@@ -158,8 +118,17 @@ const CheckupRecords = () => {
     const fetchCheckups = async () => {
       setLoading(true);
       try {
-        const data = await healthAPI.getCheckupResults();
-        if (Array.isArray(data) && data.length) setCheckups(data);
+        const [checkupData, diseaseData] = await Promise.allSettled([
+          healthAPI.getCheckupResults(),
+          healthAPI.getDiseasePredictions(),
+        ]);
+        if (checkupData.status === 'fulfilled' && Array.isArray(checkupData.value) && checkupData.value.length) {
+          setCheckups(checkupData.value);
+          setSelectedYear(checkupData.value[0]?.year || null);
+        }
+        if (diseaseData.status === 'fulfilled' && Array.isArray(diseaseData.value)) {
+          setDiseases(diseaseData.value);
+        }
       } catch (error) {
         console.error('Failed to fetch checkups:', error);
       } finally {
@@ -170,6 +139,14 @@ const CheckupRecords = () => {
   }, []);
 
   const currentCheckup = checkups.find((c) => c.year === selectedYear) || checkups[0];
+  if (!currentCheckup) return (
+    <div className="mc-page fade-in">
+      <div className="mc-page-top"><div><div className="mc-page-title">건강검진 기록</div></div></div>
+      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
+        {loading ? '불러오는 중...' : '건강검진 기록이 없어요. 데이터 연동 후 확인해주세요.'}
+      </div>
+    </div>
+  );
   const ageDelta = currentCheckup.healthAge - currentCheckup.actualAge;
   const isYounger = ageDelta < 0;
   const cleanDigits = (value) => value.replace(/\D/g, '');
@@ -377,21 +354,15 @@ const CheckupRecords = () => {
         <span className="mc-sec-title">필수 검진 대상</span>
       </div>
       <div className="mc-grid-auto-sm">
-        {MOCK_TARGETS.map((t, idx) => (
-          <div key={idx} className={`mc-card mc-card-body ${t.status === 'OVERDUE' ? 'mc-card-accent-success' : 'mc-card-accent-warning'}`}>
-            <div className="mc-row-between">
-              <div>
-                <div className="mc-card-title" style={{ fontSize: 14 }}>{t.name}</div>
-                <div className="mc-card-sub" style={{ marginTop: 4 }}>
-                  <Ic d={P.cal} size={10}/> {t.dueDate}
-                </div>
-              </div>
-              <span className={`mc-tag ${t.status === 'OVERDUE' ? 'mc-tag-success' : 'mc-tag-warning'}`}>
-                {t.status === 'OVERDUE' ? '비대상' : '대상'}
-              </span>
+        <div className="mc-card mc-card-body mc-card-accent-warning">
+          <div className="mc-row-between">
+            <div>
+              <div className="mc-card-title" style={{ fontSize: 14 }}>국가건강검진</div>
+              <div className="mc-card-sub" style={{ marginTop: 4 }}>건강보험공단 기준 해당 연도 대상자 확인 필요</div>
             </div>
+            <span className="mc-tag mc-tag-warning">확인 필요</span>
           </div>
-        ))}
+        </div>
       </div>
 
       <div className="mc-sec-head" style={{ marginTop: 18 }}>
