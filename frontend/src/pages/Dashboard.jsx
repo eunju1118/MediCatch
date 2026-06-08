@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { healthAPI, insuranceAPI, analysisAPI } from '../api/services';
 
 /**
  * MediCatch 대시보드 — 디자인 handoff에 맞춰 재작성.
@@ -30,29 +31,14 @@ const P = {
   phone:  (<><path d="M5 2h6v12H5z"/><path d="M7 12h2"/></>),
 };
 
-// ── Mock 데이터 ──────────────────────────────────
-const MOCK = {
-  visits: [
-    { hospital: '서울성모병원', detail: '입원진료 · 2024.03.11', date: '3일 전', type: '입원' },
-    { hospital: '연세세브란스',  detail: '안과 수술 · 2024.03.04', date: '10일 전', type: '수술' },
-    { hospital: '강남성심병원', detail: '물리치료 · 2024.02.20', date: '22일 전', type: '외래' },
-  ],
-  risks: [
-    { name: '비만증',   pct: 72, level: '위험', cls: 'hi' },
-    { name: '당뇨',    pct: 55, level: '주의', cls: 'mid' },
-    { name: '심뇌관계', pct: 38, level: '보통', cls: 'lo' },
-  ],
-  quickActs: [
-    { icon: 'search', title: '진료 전 보장 확인',   sub: '병원 가기 전에',  path: '/pre-treatment' },
-    { icon: 'clip',   title: '최근 진료 기록',      sub: '방문 내역 확인', path: '/medical-records' },
-    { icon: 'chart',  title: '12개월 건강 리포트',  sub: '최신 분석',      path: '/health-report' },
-    { icon: 'chat',   title: 'AI 건강 상담',        sub: '지금 채팅',      path: '/chat' },
-  ],
-  gaps: [
-    { name: '암 진단비 보장', desc: '현재 진단금 미가입 상태', level: '필수', lc: '#BBA8A8', tc: '#7A5050', tb: '#F2ECEC' },
-    { name: '치매 간병 특약', desc: '가족력 고위험군 해당',   level: '권장', lc: '#C0B890', tc: '#7A6A40', tb: '#F4EFDE' },
-  ],
-  screeningHospitals: [
+const QUICK_ACTS = [
+  { icon: 'search', title: '진료 전 보장 확인',   sub: '병원 가기 전에',  path: '/pre-treatment' },
+  { icon: 'clip',   title: '최근 진료 기록',      sub: '방문 내역 확인', path: '/medical-records' },
+  { icon: 'chart',  title: '12개월 건강 리포트',  sub: '최신 분석',      path: '/health-report' },
+  { icon: 'chat',   title: 'AI 건강 상담',        sub: '지금 채팅',      path: '/chat' },
+];
+
+const SCREENING_HOSPITALS = [
     { name: '서울성모병원', phone: '1588-1511', address: '서울 서초구 반포대로 222', province: '서울특별시', city: '서초구' },
     { name: '세브란스병원', phone: '1599-1004', address: '서울 서대문구 연세로 50-1', province: '서울특별시', city: '서대문구' },
     { name: '서울대학교병원', phone: '1588-5700', address: '서울 종로구 대학로 101', province: '서울특별시', city: '종로구' },
@@ -87,7 +73,7 @@ const MOCK = {
     { name: '양산부산대학교병원', phone: '1577-7512', address: '경남 양산시 물금읍 금오로 20', province: '경상남도', city: '양산시' },
     { name: '제주대학교병원', phone: '064-717-1114', address: '제주 제주시 아란13길 15', province: '제주특별자치도', city: '제주시' },
     { name: '제주한라병원', phone: '064-740-5000', address: '제주 제주시 도령로 65', province: '제주특별자치도', city: '제주시' },
-  ],};
+];
 
 
 const REGION_GROUPS = [
@@ -111,24 +97,56 @@ const provinceMatches = (hospitalProvince, selectedProvince) => {
   return hospitalProvince === selectedProvince;
 };
 
+const RISK_GRADE = { LOW: { label: '낮음', cls: 'lo' }, MEDIUM: { label: '주의', cls: 'mid' }, HIGH: { label: '위험', cls: 'hi' } };
+const formatKRW = (n) => new Intl.NumberFormat('ko-KR').format(n || 0) + '원';
+
 export default function Dashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [data] = useState(MOCK);
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedProvince, setSelectedProvince] = useState('서울특별시');
   const [selectedCity, setSelectedCity] = useState('전체');
 
+  const [visits, setVisits] = useState([]);
+  const [risks, setRisks] = useState([]);
+  const [gaps, setGaps] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoading(true);
+      try {
+        const [records, predictions, coverageGaps, insuranceSummary] = await Promise.allSettled([
+          healthAPI.getMedicalRecords({ size: 3 }),
+          healthAPI.getDiseasePredictions(),
+          analysisAPI.getCoverageGap(),
+          insuranceAPI.getSummary(),
+        ]);
+        if (records.status === 'fulfilled' && Array.isArray(records.value)) setVisits(records.value.slice(0, 3));
+        if (predictions.status === 'fulfilled' && Array.isArray(predictions.value)) setRisks(predictions.value);
+        if (coverageGaps.status === 'fulfilled' && Array.isArray(coverageGaps.value)) setGaps(coverageGaps.value.slice(0, 2));
+        if (insuranceSummary.status === 'fulfilled') setSummary(insuranceSummary.value);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
+
   const selectedRegion = REGION_GROUPS.find((r) => r.province === selectedProvince) || REGION_GROUPS[0];
-  const reservationHospitals = data.screeningHospitals.filter((h) => (
+  const reservationHospitals = SCREENING_HOSPITALS.filter((h) => (
     provinceMatches(h.province, selectedProvince) && (selectedCity === '전체' || h.city === selectedCity || h.province === selectedCity)
   ));
 
+  const totalPremium = summary?.totalMonthlyPremium ?? summary?.monthlyPremium ?? null;
   const stats = [
-    { lbl: '월 보험료 합계',   val: '387,000원', meta: '3개 보험사 통합',           blue: false },
-    { lbl: '최근 진료 기록',   val: '4건',       meta: '최근 12개월 기준',          blue: true },
-    { lbl: '건강 위험도',      val: '중위험',    meta: '비만 · 당뇨 주의 구간',     blue: false },
-    { lbl: '보험 공백',        val: '2개 항목',  meta: '즉시 개선 권장',            blue: false },
+    { lbl: '월 보험료 합계', val: totalPremium != null ? formatKRW(totalPremium) : '-', meta: '보험사 통합', blue: false },
+    { lbl: '최근 진료 기록', val: visits.length ? `${visits.length}건` : '-', meta: '최근 기록 기준', blue: true },
+    { lbl: '건강 위험도', val: risks.length ? (risks.some(r => r.riskGrade === 'HIGH') ? '고위험' : risks.some(r => r.riskGrade === 'MEDIUM') ? '중위험' : '양호') : '-', meta: '질병 예측 기반', blue: false },
+    { lbl: '보험 공백', val: gaps.length ? `${gaps.length}개 항목` : '없음', meta: gaps.length ? '즉시 개선 권장' : '모두 양호', blue: false },
   ];
 
   return (
@@ -168,7 +186,7 @@ export default function Dashboard() {
               <span className="mc-sec-title">빠른 기능</span>
             </div>
             <div className="mc-action-grid">
-              {data.quickActs.map((a, i) => (
+              {QUICK_ACTS.map((a, i) => (
                 <button className="mc-action-cell" key={i} onClick={() => navigate(a.path)}>
                   <div className="mc-action-icon"><Icon size={13}>{P[a.icon]}</Icon></div>
                   <div className="mc-action-title">{a.title}</div>
@@ -187,16 +205,18 @@ export default function Dashboard() {
               </button>
             </div>
             <div className="mc-gap-list">
-              {data.gaps.map((g, i) => (
+              {gaps.length > 0 ? gaps.map((g, i) => (
                 <div className="mc-gap-row" key={i}>
-                  <div className="mc-gap-accent" style={{ background: g.lc }} />
+                  <div className="mc-gap-accent" style={{ background: '#BBA8A8' }} />
                   <div className="mc-gap-info">
-                    <div className="mc-gap-name">{g.name}</div>
-                    <div className="mc-gap-sub">{g.desc}</div>
+                    <div className="mc-gap-name">{g.coverageName || g.gapName || g.name}</div>
+                    <div className="mc-gap-sub">{g.description || g.desc || ''}</div>
                   </div>
-                  <span className="mc-gap-tag" style={{ color: g.tc, background: g.tb }}>{g.level}</span>
+                  <span className="mc-gap-tag" style={{ color: '#7A5050', background: '#F2ECEC' }}>{g.priority || g.level || '확인'}</span>
                 </div>
-              ))}
+              )) : (
+                <div style={{ padding: '16px', color: 'var(--text-3)', fontSize: 13 }}>보험 공백이 없어요 👍</div>
+              )}
               <div className="mc-gap-footer">
                 <button
                   className="mc-btn mc-btn-primary"
@@ -219,17 +239,25 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="mc-risk-list">
-            {data.risks.map((r, i) => (
-              <div className="mc-risk-row" key={i}>
-                <div className="mc-risk-meta">
-                  <span className="mc-risk-name">{r.name}</span>
-                  <span className={`mc-risk-lvl ${r.cls}`}>{r.level}</span>
+            {risks.length > 0 ? risks.map((r, i) => {
+              const grade = RISK_GRADE[r.riskGrade] || { label: r.riskGrade, cls: 'lo' };
+              const pct = Math.min((r.myRisk || r.avgProbability || 0), 100);
+              return (
+                <div className="mc-risk-row" key={i}>
+                  <div className="mc-risk-meta">
+                    <span className="mc-risk-name">{r.type || r.diseaseName}</span>
+                    <span className={`mc-risk-lvl ${grade.cls}`}>{grade.label}</span>
+                  </div>
+                  <div className="mc-risk-bar">
+                    <div className={`mc-risk-fill ${grade.cls}`} style={{ width: `${pct}%` }} />
+                  </div>
                 </div>
-                <div className="mc-risk-bar">
-                  <div className={`mc-risk-fill ${r.cls}`} style={{ width: `${r.pct}%` }} />
-                </div>
+              );
+            }) : (
+              <div style={{ padding: '16px', color: 'var(--text-3)', fontSize: 13 }}>
+                {loading ? '불러오는 중...' : '질병 위험도 데이터가 없어요.'}
               </div>
-            ))}
+            )}
           </div>
           <div className="mc-ai-strip" onClick={() => navigate('/chat')}>
             <div>
@@ -260,21 +288,25 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.visits.map((c, i) => (
+              {visits.length > 0 ? visits.map((c, i) => (
                 <tr key={i} onClick={() => navigate('/medical-records')}>
                   <td>
-                    <div className="mc-tbl-hospital">{c.hospital}</div>
-                    <div className="mc-tbl-detail">{c.detail}</div>
+                    <div className="mc-tbl-hospital">{c.hospitalName || c.hospital}</div>
+                    <div className="mc-tbl-detail">{c.visitDate || c.detail}</div>
                   </td>
-                  <td><span className="mc-tbl-date">{c.date}</span></td>
-                  <td><span className="mc-tbl-tag">{c.type}</span></td>
+                  <td><span className="mc-tbl-date">{c.visitDate || c.date}</span></td>
+                  <td><span className="mc-tbl-tag">{c.treatmentType || c.type}</span></td>
                 </tr>
-              ))}
+              )) : (
+                <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-3)', padding: 16 }}>
+                  {loading ? '불러오는 중...' : '진료 기록이 없어요.'}
+                </td></tr>
+              )}
             </tbody>
           </table>
           <div className="mc-tbl-footer">
             <span className="mc-tbl-footer-label">최근 방문 기록</span>
-            <span className="mc-tbl-footer-value">총 4건</span>
+            <span className="mc-tbl-footer-value">총 {visits.length}건</span>
           </div>
         </div>
 
@@ -298,7 +330,7 @@ export default function Dashboard() {
             <div className="mc-widget-section-lbl">최근 진료 요약</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
               <span style={{ color: 'var(--text-2)' }}>최근 방문</span>
-              <span style={{ fontWeight: 700, color: 'var(--blue)' }}>4건</span>
+              <span style={{ fontWeight: 700, color: 'var(--blue)' }}>{visits.length}건</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: 'var(--text-2)' }}>주요 진료과</span>

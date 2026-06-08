@@ -13,22 +13,11 @@ const P = {
   chart:   (<><path d="M3 13V7M8 13V3M13 13V9"/></>),
 };
 
-const MOCK_RECORDS = [
-  { id: 1, visitDate: '2026-03-15', hospitalName: '서울성모병원', treatmentType: '외래',
-    patientPayment: 45000, insurancePayment: 180000, totalCost: 225000 },
-  { id: 2, visitDate: '2026-02-28', hospitalName: '연세세브란스병원', treatmentType: '입원',
-    patientPayment: 320000, insurancePayment: 1280000, totalCost: 1600000 },
-  { id: 3, visitDate: '2026-01-10', hospitalName: '강남구 우리약국', treatmentType: '약국',
-    patientPayment: 8500, insurancePayment: 0, totalCost: 8500 },
-  { id: 4, visitDate: '2025-12-05', hospitalName: '분당서울대병원', treatmentType: '외래',
-    patientPayment: 28000, insurancePayment: 112000, totalCost: 140000 },
-];
-
 const FILTERS = ['전체', '외래', '입원', '약국'];
 const formatKRW = (n) => new Intl.NumberFormat('ko-KR').format(n || 0) + '원';
 
 const MedicalRecords = () => {
-  const [records, setRecords] = useState(MOCK_RECORDS);
+  const [records, setRecords] = useState([]);
   const [filterStatus, setFilterStatus] = useState('전체');
   const [loading, setLoading] = useState(false);
 
