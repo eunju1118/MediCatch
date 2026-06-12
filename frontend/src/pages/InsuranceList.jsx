@@ -5,9 +5,9 @@ import useAuthStore from '../store/authStore';
 import CodefSyncModal from '../components/CodefSyncModal';
 
 const Ic = ({ d, size = 13 }) => (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
-         strokeLinecap="round" strokeLinejoin="round"
-         style={{ width: size, height: size, flexShrink: 0 }}>{d}</svg>
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
+    strokeLinecap="round" strokeLinejoin="round"
+    style={{ width: size, height: size, flexShrink: 0 }}>{d}</svg>
 );
 
 const P = {
@@ -47,16 +47,16 @@ const renderPieLabel = ({ cx, cy, midAngle, outerRadius, name, value }) => {
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
   return (
-      <text
-          x={x}
-          y={y}
-          className="mc-pie-label"
-          textAnchor={x > cx ? 'start' : 'end'}
-          dominantBaseline="central"
-      >
-        <tspan x={x} dy="-0.35em">{name}</tspan>
-        <tspan x={x} dy="1.2em">{value}건</tspan>
-      </text>
+    <text
+      x={x}
+      y={y}
+      className="mc-pie-label"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+    >
+      <tspan x={x} dy="-0.35em">{name}</tspan>
+      <tspan x={x} dy="1.2em">{value}건</tspan>
+    </text>
   );
 };
 
@@ -125,15 +125,15 @@ const groupCoverageItems = (items = []) => {
   }, {});
 
   return COVERAGE_CATEGORY_ORDER
-      .filter((category) => grouped[category]?.length)
-      .map((category) => ({
-        category,
-        items: grouped[category].sort((a, b) => {
-          const amountDiff = Number(getCoverageAmount(b) || 0) - Number(getCoverageAmount(a) || 0);
-          if (amountDiff !== 0) return amountDiff;
-          return (a.name || a.itemName || '').localeCompare(b.name || b.itemName || '', 'ko-KR');
-        }),
-      }));
+    .filter((category) => grouped[category]?.length)
+    .map((category) => ({
+      category,
+      items: grouped[category].sort((a, b) => {
+        const amountDiff = Number(getCoverageAmount(b) || 0) - Number(getCoverageAmount(a) || 0);
+        if (amountDiff !== 0) return amountDiff;
+        return (a.name || a.itemName || '').localeCompare(b.name || b.itemName || '', 'ko-KR');
+      }),
+    }));
 };
 
 const InsuranceList = () => {
@@ -174,13 +174,13 @@ const InsuranceList = () => {
     }, {});
 
     return COVERAGE_CATEGORY_ORDER
-        .map((name) => ({ name, value: counts[name] || 0 }))
-        .filter((item) => item.value > 0);
+      .map((name) => ({ name, value: counts[name] || 0 }))
+      .filter((item) => item.value > 0);
   }, [policies]);
 
   const totalPremium = policies.reduce((sum, p) => sum + (p.monthlyPremium || 0), 0);
   const totalCoverage = policies.reduce(
-      (sum, p) => sum + (p.coverageItems || []).reduce((s, item) => s + (item.amount || 0), 0), 0,
+    (sum, p) => sum + (p.coverageItems || []).reduce((s, item) => s + (item.amount || 0), 0), 0,
   );
   const filteredPremium = filteredPolicies.reduce((sum, p) => sum + (p.monthlyPremium || 0), 0);
 
@@ -195,270 +195,270 @@ const InsuranceList = () => {
   const showEmptyFilter = !loading && !error && hasPolicies && filteredPolicies.length === 0;
 
   return (
-      <div className="mc-page fade-in">
-        <div className="mc-page-top">
-          <div>
-            <div className="mc-page-title">내 보험 조회</div>
-            <div className="mc-page-subtitle">가입된 보험 상품과 보장 내역을 한곳에서 관리하세요.</div>
-          </div>
+    <div className="mc-page fade-in">
+      <div className="mc-page-top">
+        <div>
+          <div className="mc-page-title">내 보험 조회</div>
+          <div className="mc-page-subtitle">가입된 보험 상품과 보장 내역을 한곳에서 관리하세요.</div>
         </div>
+      </div>
 
-        <div className="mc-stats-strip mc-stats-strip-3">
-          <div className="mc-stat">
-            <div className="mc-stat-label">총 월 보험료</div>
-            <div className="mc-stat-value">{formatKRW(totalPremium)}</div>
-            <div className="mc-stat-sub">매월 납입</div>
-          </div>
-          <div className="mc-stat">
-            <div className="mc-stat-label">보험 건수</div>
-            <div className="mc-stat-value">{policies.length}건</div>
-            <div className="mc-stat-sub">활성 계약</div>
-          </div>
-          <div className="mc-stat mc-stat-pill-blue">
-            <div className="mc-stat-label">총 보장금액</div>
-            <div className="mc-stat-value">{formatKRW(totalCoverage)}</div>
-            <div className="mc-stat-sub">보장 한도 합계</div>
-          </div>
+      <div className="mc-stats-strip mc-stats-strip-3">
+        <div className="mc-stat">
+          <div className="mc-stat-label">총 월 보험료</div>
+          <div className="mc-stat-value">{formatKRW(totalPremium)}</div>
+          <div className="mc-stat-sub">매월 납입</div>
         </div>
+        <div className="mc-stat">
+          <div className="mc-stat-label">보험 건수</div>
+          <div className="mc-stat-value">{policies.length}건</div>
+          <div className="mc-stat-sub">활성 계약</div>
+        </div>
+        <div className="mc-stat mc-stat-pill-blue">
+          <div className="mc-stat-label">총 보장금액</div>
+          <div className="mc-stat-value">{formatKRW(totalCoverage)}</div>
+          <div className="mc-stat-sub">보장 한도 합계</div>
+        </div>
+      </div>
 
-        <div className="mc-two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div>
-            <div className="mc-sec-head">
-              <span className="mc-sec-title">보장 항목 구성</span>
-            </div>
-            <div className="mc-card mc-card-body mc-coverage-card">
-              {coveragePieData.length > 0 ? (
-                  <div className="mc-chart-wrap mc-coverage-chart">
-                    <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie
-                            data={coveragePieData}
-                            cx="50%" cy="50%"
-                            innerRadius={54} outerRadius={78}
-                            paddingAngle={4}
-                            cornerRadius={4}
-                            dataKey="value"
-                            label={renderPieLabel}
-                            labelLine={{ stroke: '#B5BDCA', strokeWidth: 1 }}
-                        >
-                          {coveragePieData.map((entry, index) => (
-                              <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="#fff" strokeWidth={2}/>
-                          ))}
-                        </Pie>
-                        <Tooltip
-                            formatter={(value) => `${value}건`}
-                            contentStyle={{
-                              background: '#fff', border: '1px solid #DDE1EA', borderRadius: 6,
-                              fontSize: 12,
-                            }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-              ) : (
-                  <div style={emptyCardStyle}>표시할 보험 구성이 없습니다.</div>
-              )}
-            </div>
+      <div className="mc-two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div>
+          <div className="mc-sec-head">
+            <span className="mc-sec-title">보장 항목 구성</span>
           </div>
-
-          <div>
-            <div className="mc-sec-head">
-              <span className="mc-sec-title">유형 필터</span>
-            </div>
-            <div className="mc-card mc-card-body">
-              <div className="mc-row-wrap">
-                {FILTERS.map((type) => (
-                    <button
-                        key={type}
-                        className={`mc-chip ${filterType === type ? 'active' : ''}`}
-                        onClick={() => setFilterType(type)}
+          <div className="mc-card mc-card-body mc-coverage-card">
+            {coveragePieData.length > 0 ? (
+              <div className="mc-chart-wrap mc-coverage-chart">
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={coveragePieData}
+                      cx="50%" cy="50%"
+                      innerRadius={54} outerRadius={78}
+                      paddingAngle={4}
+                      cornerRadius={4}
+                      dataKey="value"
+                      label={renderPieLabel}
+                      labelLine={{ stroke: '#B5BDCA', strokeWidth: 1 }}
                     >
-                      {type}
-                    </button>
-                ))}
+                      {coveragePieData.map((entry, index) => (
+                        <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="#fff" strokeWidth={2}/>
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => `${value}건`}
+                      contentStyle={{
+                        background: '#fff', border: '1px solid #DDE1EA', borderRadius: 6,
+                        fontSize: 12,
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="mc-alert mc-alert-blue mc-filter-summary" style={{ marginTop: 16 }}>
-                <div>
-                  <div className="mc-alert-title">총 {filteredPolicies.length}건 · 월 {formatKRW(filteredPremium)}</div>
-                  <div className="mc-alert-body">현재 필터 기준 금액</div>
-                </div>
-                <span className="mc-tag mc-tag-blue">
+            ) : (
+              <div style={emptyCardStyle}>표시할 보험 구성이 없습니다.</div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="mc-sec-head">
+            <span className="mc-sec-title">유형 필터</span>
+          </div>
+          <div className="mc-card mc-card-body">
+            <div className="mc-row-wrap">
+              {FILTERS.map((type) => (
+                <button
+                  key={type}
+                  className={`mc-chip ${filterType === type ? 'active' : ''}`}
+                  onClick={() => setFilterType(type)}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            <div className="mc-alert mc-alert-blue mc-filter-summary" style={{ marginTop: 16 }}>
+              <div>
+                <div className="mc-alert-title">총 {filteredPolicies.length}건 · 월 {formatKRW(filteredPremium)}</div>
+                <div className="mc-alert-body">현재 필터 기준 금액</div>
+              </div>
+              <span className="mc-tag mc-tag-blue">
                 <Ic d={P.shield} size={10}/> {filterType}
               </span>
-              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="mc-sec-head" style={{ marginTop: 18 }}>
-          <span className="mc-sec-title">가입 보험 · {filteredPolicies.length}건</span>
-        </div>
+      <div className="mc-sec-head" style={{ marginTop: 18 }}>
+        <span className="mc-sec-title">가입 보험 · {filteredPolicies.length}건</span>
+      </div>
 
-        <div className="mc-stack-sm">
-          {filteredPolicies.map((policy) => {
-            const open = expandedPolicy === policy.id;
-            const coverageGroups = groupCoverageItems(policy.coverageItems || []);
-            return (
-                <div key={policy.id} className="mc-card">
-                  <div
-                      className="mc-card-head clickable"
-                      onClick={() => setExpandedPolicy(open ? null : policy.id)}
-                      style={{ cursor: 'pointer' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                      <div style={{
-                        width: 38, height: 38, borderRadius: 6,
-                        background: 'var(--blue-soft)', color: 'var(--blue)',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 800, fontSize: 14, letterSpacing: '-0.4px',
-                      }}>
-                        {(policy.companyName || '?').charAt(0)}
-                      </div>
-                      <div>
-                        <div className="mc-card-title mc-policy-title" style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          {policy.productName || '보험 상품명 없음'}
-                          {policy.hasSupplementaryCoverage && policy.policyType !== 'SUPPLEMENTARY' && (
-                              <span style={supplementaryBadgeStyle}>실손보장 포함</span>
-                          )}
-                        </div>
-                        <div className="mc-card-sub">
-                          {policy.companyName || '보험사 미확인'} · {getPolicyTypeLabel(policy)}
-                        </div>
-                      </div>
+      <div className="mc-stack-sm">
+        {filteredPolicies.map((policy) => {
+          const open = expandedPolicy === policy.id;
+          const coverageGroups = groupCoverageItems(policy.coverageItems || []);
+          return (
+            <div key={policy.id} className="mc-card">
+              <div
+                className="mc-card-head clickable"
+                onClick={() => setExpandedPolicy(open ? null : policy.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 6,
+                    background: 'var(--blue-soft)', color: 'var(--blue)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: 14, letterSpacing: '-0.4px',
+                  }}>
+                    {(policy.companyName || '?').charAt(0)}
+                  </div>
+                  <div>
+                    <div className="mc-card-title mc-policy-title" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      {policy.productName || '보험 상품명 없음'}
+                      {policy.hasSupplementaryCoverage && policy.policyType !== 'SUPPLEMENTARY' && (
+                        <span style={supplementaryBadgeStyle}>실손보장 포함</span>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="mc-card-sub">
+                      {policy.companyName || '보험사 미확인'} · {getPolicyTypeLabel(policy)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span className={`mc-tag ${policy.contractStatus === 'ACTIVE' ? 'mc-tag-blue' : 'mc-tag-neutral'}`}>
                     {policy.contractStatus === 'ACTIVE' ? '활성' : '만료'}
                   </span>
-                      <span style={{
-                        display: 'inline-flex',
-                        transform: open ? 'rotate(180deg)' : 'none',
-                        transition: 'transform 0.2s',
-                        color: 'var(--text-3)',
-                      }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    transform: open ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s',
+                    color: 'var(--text-3)',
+                  }}>
                     <Ic d={P.chev} size={12}/>
                   </span>
-                    </div>
+                </div>
+              </div>
+
+              <div className="mc-card-body">
+                <div className="mc-grid-2">
+                  <div className="mc-kv mc-policy-kv">
+                    <span className="mc-kv-key mc-policy-premium-key">보험료</span>
+                    <span className="mc-kv-val mc-policy-premium-val">{formatPremium(policy)}</span>
                   </div>
+                  <div className="mc-kv mc-policy-kv">
+                    <span className="mc-kv-key mc-policy-expiry-key">만료일</span>
+                    <span className="mc-kv-val mc-policy-date-val">{policy.endDate || '-'}</span>
+                  </div>
+                </div>
 
-                  <div className="mc-card-body">
-                    <div className="mc-grid-2">
-                      <div className="mc-kv mc-policy-kv">
-                        <span className="mc-kv-key mc-policy-premium-key">보험료</span>
-                        <span className="mc-kv-val mc-policy-premium-val">{formatPremium(policy)}</span>
-                      </div>
-                      <div className="mc-kv mc-policy-kv">
-                        <span className="mc-kv-key mc-policy-expiry-key">만료일</span>
-                        <span className="mc-kv-val mc-policy-date-val">{policy.endDate || '-'}</span>
-                      </div>
+                {open && (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="mc-field-label" style={{ marginBottom: 8 }}>
+                      보장 내역 · {(policy.coverageItems || []).length}건
                     </div>
-
-                    {open && (
-                        <div style={{ marginTop: 14 }}>
-                          <div className="mc-field-label" style={{ marginBottom: 8 }}>
-                            보장 내역 · {(policy.coverageItems || []).length}건
-                          </div>
-                          {coverageGroups.length > 0 ? (
-                              <table className="mc-tbl">
-                                <thead>
-                                <tr>
-                                  <th>보장 항목</th>
-                                  <th style={{ textAlign: 'right' }}>보장금액</th>
-                                  <th style={{ textAlign: 'right' }}>상태</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {coverageGroups.flatMap((group) => [
-                                  <tr key={`group-${group.category}`}>
-                                    <td colSpan={3} style={{
-                                      background: '#F6F8FC',
-                                      color: 'var(--text-2)',
-                                      fontWeight: 800,
-                                      fontSize: 12,
-                                    }}>
-                                      {group.category} · {group.items.length}건
-                                    </td>
-                                  </tr>,
-                                  ...group.items.map((item, idx) => (
-                                      <tr key={`${group.category}-${idx}`}>
-                                        <td>
-                                          <div style={{ fontWeight: 700 }}>{item.name || item.itemName || '-'}</div>
-                                          {item.agreementType && (
-                                              <div style={{ marginTop: 3, color: 'var(--text-3)', fontSize: 12 }}>
-                                                {item.agreementType}
-                                              </div>
-                                          )}
-                                        </td>
-                                        <td style={{ textAlign: 'right', color: 'var(--blue)', fontWeight: 700 }}>
-                                          {formatCoverageAmount(item)}
-                                        </td>
-                                        <td style={{ textAlign: 'right' }}>
+                    {coverageGroups.length > 0 ? (
+                      <table className="mc-tbl">
+                        <thead>
+                          <tr>
+                            <th>보장 항목</th>
+                            <th style={{ textAlign: 'right' }}>보장금액</th>
+                            <th style={{ textAlign: 'right' }}>상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coverageGroups.flatMap((group) => [
+                            <tr key={`group-${group.category}`}>
+                              <td colSpan={3} style={{
+                                background: '#F6F8FC',
+                                color: 'var(--text-2)',
+                                fontWeight: 800,
+                                fontSize: 12,
+                              }}>
+                                {group.category} · {group.items.length}건
+                              </td>
+                            </tr>,
+                            ...group.items.map((item, idx) => (
+                              <tr key={`${group.category}-${idx}`}>
+                                <td>
+                                  <div style={{ fontWeight: 700 }}>{item.name || item.itemName || '-'}</div>
+                                  {item.agreementType && (
+                                    <div style={{ marginTop: 3, color: 'var(--text-3)', fontSize: 12 }}>
+                                      {item.agreementType}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right', color: 'var(--blue)', fontWeight: 700 }}>
+                                  {formatCoverageAmount(item)}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
                                   <span className={`mc-tag ${item.isCovered !== false ? 'mc-tag-success' : 'mc-tag-neutral'}`}>
                                     {item.isCovered !== false ? '보장중' : '예외'}
                                   </span>
-                                        </td>
-                                      </tr>
-                                  )),
-                                ])}
-                                </tbody>
-                              </table>
-                          ) : (
-                              <div className="mc-card mc-card-body" style={{ color: 'var(--text-3)' }}>
-                                등록된 보장 내역이 없습니다.
-                              </div>
-                          )}
-                        </div>
+                                </td>
+                              </tr>
+                            )),
+                          ])}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="mc-card mc-card-body" style={{ color: 'var(--text-3)' }}>
+                        등록된 보장 내역이 없습니다.
+                      </div>
                     )}
                   </div>
-                </div>
-            );
-          })}
-
-          {showInitialLoading && (
-              <div className="mc-card mc-card-body" style={emptyCardStyle}>
-                보험 정보를 불러오는 중입니다.
-              </div>
-          )}
-
-          {error && (
-              <div className="mc-alert mc-alert-red" style={{ marginTop: 8 }}>
-                <div>
-                  <div className="mc-alert-title">보험 정보를 불러오지 못했습니다.</div>
-                  <div className="mc-alert-body">{error}</div>
-                </div>
-              </div>
-          )}
-
-          {showEmptyPolicies && (
-              <div className="mc-card mc-card-body" style={emptyCardStyle}>
-                아직 조회된 보험 정보가 없습니다. 내 건강 불러오기를 통해 보험 정보를 동기화해주세요.
-              </div>
-          )}
-
-          {showEmptyFilter && (
-              <div className="mc-card mc-card-body" style={emptyCardStyle}>
-                현재 필터에 해당하는 보험이 없습니다.
-              </div>
-          )}
-        </div>
-
-        {loading && hasPolicies && (
-            <div className="mc-alert mc-alert-blue" style={{ marginTop: 16 }}>
-              <div>
-                <div className="mc-alert-title">보험 정보 불러오는 중...</div>
-                <div className="mc-alert-body">잠시만 기다려주세요.</div>
+                )}
               </div>
             </div>
+          );
+        })}
+
+        {showInitialLoading && (
+          <div className="mc-card mc-card-body" style={emptyCardStyle}>
+            보험 정보를 불러오는 중입니다.
+          </div>
         )}
 
-        {showSyncModal && (
-            <CodefSyncModal
-                userId={user?.userId}
-                onClose={() => setShowSyncModal(false)}
-                onSuccess={handleSyncSuccess}
-            />
+        {error && (
+          <div className="mc-alert mc-alert-red" style={{ marginTop: 8 }}>
+            <div>
+              <div className="mc-alert-title">보험 정보를 불러오지 못했습니다.</div>
+              <div className="mc-alert-body">{error}</div>
+            </div>
+          </div>
+        )}
+
+        {showEmptyPolicies && (
+          <div className="mc-card mc-card-body" style={emptyCardStyle}>
+            아직 조회된 보험 정보가 없습니다. 내 건강 불러오기를 통해 보험 정보를 동기화해주세요.
+          </div>
+        )}
+
+        {showEmptyFilter && (
+          <div className="mc-card mc-card-body" style={emptyCardStyle}>
+            현재 필터에 해당하는 보험이 없습니다.
+          </div>
         )}
       </div>
+
+      {loading && hasPolicies && (
+        <div className="mc-alert mc-alert-blue" style={{ marginTop: 16 }}>
+          <div>
+            <div className="mc-alert-title">보험 정보 불러오는 중...</div>
+            <div className="mc-alert-body">잠시만 기다려주세요.</div>
+          </div>
+        </div>
+      )}
+
+      {showSyncModal && (
+        <CodefSyncModal
+          userId={user?.userId}
+          onClose={() => setShowSyncModal(false)}
+          onSuccess={handleSyncSuccess}
+        />
+      )}
+    </div>
   );
 };
 
