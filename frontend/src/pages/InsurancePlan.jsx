@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { insuranceAPI } from '../api/services';
+import { healthAPI, insuranceAPI } from '../api/services';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -46,6 +46,22 @@ const formatCompactWon = (amount) => {
   if (amount >= 10000000) return `${(amount / 10000000).toFixed(1)}천만원`;
   if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}백만원`;
   return formatWon(amount);
+};
+
+const PEER_PREMIUM_BENCHMARKS = [
+  { min: 20, max: 29, label: '20대', average: 185650 },
+  { min: 30, max: 39, label: '30대', average: 278935 },
+  { min: 40, max: 49, label: '40대', average: 395661 },
+  { min: 50, max: 59, label: '50대', average: 481036 },
+  { min: 60, max: 69, label: '60대', average: 356019 },
+];
+
+const getPeerPremiumBenchmark = (age) => {
+  const fallback = PEER_PREMIUM_BENCHMARKS[2];
+  const n = Number(age);
+  if (!Number.isFinite(n)) return { ...fallback, estimated: true };
+  return PEER_PREMIUM_BENCHMARKS.find((item) => n >= item.min && n <= item.max)
+    || (n < 20 ? { ...PEER_PREMIUM_BENCHMARKS[0], estimated: true } : { ...PEER_PREMIUM_BENCHMARKS[PEER_PREMIUM_BENCHMARKS.length - 1], estimated: true });
 };
 
 const getCoverageItems = (policy) => (
@@ -99,6 +115,7 @@ const InsurancePlan = () => {
   const navigate = useNavigate();
   const [policies, setPolicies] = useState([]);
   const [coverageComparisons, setCoverageComparisons] = useState([]);
+  const [userAge, setUserAge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -107,12 +124,14 @@ const InsurancePlan = () => {
       setLoading(true);
       setError('');
       try {
-        const [policyRows, comparisonRows] = await Promise.all([
+        const [policyRows, comparisonRows, healthAge] = await Promise.all([
           insuranceAPI.getPolicies(),
           insuranceAPI.getCoverageComparison(),
+          healthAPI.getHealthAge().catch(() => null),
         ]);
         setPolicies(Array.isArray(policyRows) ? policyRows : []);
         setCoverageComparisons(Array.isArray(comparisonRows) ? comparisonRows : []);
+        setUserAge(healthAge?.chronologicalAge ?? healthAge?.age ?? null);
       } catch (err) {
         console.error('Failed to fetch insurance plan data:', err);
         setPolicies([]);
@@ -142,6 +161,17 @@ const InsurancePlan = () => {
   const monthlyPremium = activePolicies.reduce((sum, policy) => (
     sum + toNumber(policy.monthlyPremium ?? policy.monthly_premium)
   ), 0);
+  const peerPremium = getPeerPremiumBenchmark(userAge);
+  const peerDiff = monthlyPremium - peerPremium.average;
+  const peerPercent = peerPremium.average > 0 && monthlyPremium > 0
+    ? Math.round((monthlyPremium / peerPremium.average) * 100)
+    : 0;
+  const peerBarWidth = Math.min(peerPercent || 0, 135);
+  const peerStatus = monthlyPremium <= 0
+    ? '확인 필요'
+    : peerDiff > 0
+      ? '또래보다 높음'
+      : '또래보다 낮음';
 
   return (
     <div className="mc-page fade-in">
@@ -159,51 +189,78 @@ const InsurancePlan = () => {
         </div>
       </div>
 
-      <div className="mc-two-col" style={{ gridTemplateColumns: '360px 1fr' }}>
+      <div className="mc-insurance-overview-grid">
         <div className="mc-card mc-card-body mc-insurance-score-card">
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-            textTransform: 'uppercase', opacity: 0.85,
-          }}>
-            <Ic d={P.shield} size={12}/> 핵심 보장 점수
+          <div>
+            <div className="mc-insurance-score-label">
+              <Ic d={P.shield} size={12}/> 핵심 보장 점수
+            </div>
+            <div className="mc-insurance-score-value">
+              {coverageScore}
+              <span>/ 100</span>
+            </div>
+            <div className="mc-insurance-score-sub">
+              평균그룹 비교 항목 기준
+            </div>
           </div>
-          <div style={{
-            fontSize: 44, fontWeight: 800,
-            marginTop: 8, lineHeight: 1,
-          }}>
-            {coverageScore}
-            <span style={{ fontSize: 22, fontWeight: 600, marginLeft: 4 }}>/ 100</span>
-          </div>
-          <div style={{ fontSize: 12.5, marginTop: 8, opacity: 0.9 }}>
-            평균그룹 비교 항목 기준 · 확인 필요 {gapCount}개
-          </div>
-          <div className="mc-pbar mc-insurance-score-bar" style={{ marginTop: 14 }}>
-            <div className="mc-pbar-fill" style={{ width: `${coverageScore}%` }}/>
+          <div>
+            <div className="mc-pbar mc-insurance-score-bar">
+              <div className="mc-pbar-fill" style={{ width: `${coverageScore}%` }}/>
+            </div>
+            <div className="mc-insurance-score-foot">
+              <span>확인 필요</span>
+              <strong>{gapCount}개</strong>
+            </div>
           </div>
         </div>
 
-        <div className="mc-grid-2">
-          <div className="mc-card mc-card-body">
-            <div className="mc-field-label">분석 대상 보장</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>
-              {coverageItems.length}건
-            </div>
-            <div className="mc-stat-sub">활성 보험 {activePolicies.length}건 기준</div>
+        <div className="mc-card mc-card-body mc-insurance-metric-card">
+          <div className="mc-field-label">분석 대상 보장</div>
+          <div className="mc-stat-value" style={{ marginTop: 4 }}>
+            {coverageItems.length}건
           </div>
-          <div className="mc-card mc-card-body">
-            <div className="mc-field-label">미확인 공백</div>
-            <div className="mc-stat-value" style={{ marginTop: 4 }}>
-              {missingCount}개
-            </div>
-            <div className="mc-stat-sub">통계 비교 항목 중 미확인</div>
+          <div className="mc-stat-sub">활성 보험 {activePolicies.length}건 기준</div>
+        </div>
+        <div className="mc-card mc-card-body mc-insurance-metric-card">
+          <div className="mc-field-label">미확인 공백</div>
+          <div className="mc-stat-value" style={{ marginTop: 4 }}>
+            {missingCount}개
           </div>
-          <div className="mc-card mc-card-body mc-card-accent-blue" style={{ gridColumn: 'span 2' }}>
-            <div className="mc-field-label">월 보험료 합계</div>
-            <div className="mc-stat-value" style={{ marginTop: 4, color: 'var(--blue)' }}>
-              {monthlyPremium > 0 ? formatWon(monthlyPremium) : '정보 없음'}
+          <div className="mc-stat-sub">통계 비교 항목 중 미확인</div>
+        </div>
+        <div className="mc-card mc-card-body mc-insurance-metric-card mc-insurance-premium-card">
+          <div className="mc-field-label">월 보험료 합계</div>
+          <div className="mc-stat-value" style={{ marginTop: 4, color: 'var(--blue)' }}>
+            {monthlyPremium > 0 ? formatWon(monthlyPremium) : '정보 없음'}
+          </div>
+          <div className="mc-stat-sub">일시납/보험료 미제공 계약은 합계에서 제외</div>
+        </div>
+        <div className="mc-card mc-card-body mc-peer-premium-card">
+          <div className="mc-row-between" style={{ alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div className="mc-field-label">또래 평균 보험료</div>
+              <div className="mc-peer-premium-age">
+                {userAge ? `만 ${userAge}세 · ${peerPremium.label}` : `${peerPremium.label} 기준`}
+              </div>
             </div>
-            <div className="mc-stat-sub">일시납/보험료 미제공 계약은 합계에서 제외</div>
+            <span className={`mc-tag ${peerDiff > 0 ? 'mc-tag-warning' : 'mc-tag-success'}`}>
+              {peerStatus}
+            </span>
+          </div>
+          <div className="mc-peer-premium-main">
+            <span>{formatWon(peerPremium.average)}</span>
+            {monthlyPremium > 0 && (
+              <small>
+                내 보험료 {peerDiff >= 0 ? '+' : '-'}{formatWon(Math.abs(peerDiff))}
+              </small>
+            )}
+          </div>
+          <div className="mc-peer-premium-scale" aria-hidden="true">
+            <div className="mc-peer-premium-fill" style={{ width: `${peerBarWidth}%` }} />
+            <i style={{ left: '100%' }} />
+          </div>
+          <div className="mc-peer-premium-note">
+            연령대별 월평균 납입보험료 참고값입니다.
           </div>
         </div>
       </div>
@@ -217,7 +274,7 @@ const InsurancePlan = () => {
           {comparisonItems.map((item) => {
             const statusInfo = GAP_STATUS[item.status];
             return (
-              <div key={item.id || item.coverageCode || item.coverageName} className="mc-card mc-card-body">
+              <div key={item.id || item.coverageCode || item.coverageName} className="mc-card mc-card-body mc-gap-compare-card">
                 <div className="mc-row-between" style={{ marginBottom: 10 }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-1)' }}>

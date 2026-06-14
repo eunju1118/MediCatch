@@ -16,7 +16,7 @@ export default function useKakaoMap() {
   useEffect(() => {
     if (loaded) return;
     if (!APP_KEY) {
-      setError('카카오지도 앱키(REACT_APP_KAKAO_MAP_KEY)가 설정되지 않았습니다.');
+      setError('지도 키가 없어 목록으로 병원을 확인해주세요.');
       return;
     }
 
