@@ -3830,6 +3830,9 @@ body::before {
 .mc-insurance-metric-card {
   min-height: 142px;
   padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   border-color: rgba(213, 222, 236, .78);
   background:
     linear-gradient(135deg, rgba(255,255,255,.98), rgba(250,252,255,.9));
@@ -3842,6 +3845,7 @@ body::before {
 }
 
 .mc-insurance-metric-card .mc-stat-value {
+  margin-top: 18px;
   color: #253247;
   font-size: 23px;
   font-weight: 700;
@@ -3849,11 +3853,19 @@ body::before {
 }
 
 .mc-insurance-metric-card .mc-stat-sub {
-  margin-top: 7px;
+  margin-top: 12px;
   color: #7f8da3;
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.45;
+}
+
+.mc-insurance-premium-card .mc-stat-sub {
+  margin-top: 13px;
+}
+
+.mc-insurance-premium-value {
+  color: var(--blue) !important;
 }
 
 .mc-insurance-premium-card {
@@ -3891,7 +3903,7 @@ body::before {
 }
 
 .mc-insurance-score-value {
-  margin-top: 14px;
+  margin-top: 24px;
   color: #253247;
   font-size: 34px;
   font-weight: 700;
@@ -3907,7 +3919,7 @@ body::before {
 }
 
 .mc-insurance-score-sub {
-  margin-top: 12px;
+  margin-top: 21px;
   color: #62718a;
   font-size: 12.5px;
   font-weight: 500;

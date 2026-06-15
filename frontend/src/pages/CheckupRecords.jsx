@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { healthAPI, insuranceAPI } from '../api/services';
+import { openPrintPopup } from '../utils/printPage';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -354,7 +355,7 @@ const CheckupRecords = () => {
   const ageDelta = (healthAge?.biologicalAge ?? 0) - (healthAge?.chronologicalAge ?? 0);
   const isYounger = ageDelta < 0;
   const handlePDFDownload = () => {
-    window.print();
+    openPrintPopup('MediCatch 건강검진 기록');
   };
 
   return (

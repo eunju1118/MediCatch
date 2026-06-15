@@ -4,6 +4,7 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { healthAPI, insuranceAPI } from '../api/services';
+import { openPrintPopup } from '../utils/printPage';
 
 const Ic = ({ d, size = 13 }) => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -618,7 +619,7 @@ const HealthReport = () => {
   };
 
   const handlePDFDownload = () => {
-    window.print();
+    openPrintPopup('MediCatch 건강 리포트');
   };
 
   return (

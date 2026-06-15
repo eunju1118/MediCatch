@@ -48,22 +48,6 @@ const formatCompactWon = (amount) => {
   return formatWon(amount);
 };
 
-const PEER_PREMIUM_BENCHMARKS = [
-  { min: 20, max: 29, label: '20대', average: 185650 },
-  { min: 30, max: 39, label: '30대', average: 278935 },
-  { min: 40, max: 49, label: '40대', average: 395661 },
-  { min: 50, max: 59, label: '50대', average: 481036 },
-  { min: 60, max: 69, label: '60대', average: 356019 },
-];
-
-const getPeerPremiumBenchmark = (age) => {
-  const fallback = PEER_PREMIUM_BENCHMARKS[2];
-  const n = Number(age);
-  if (!Number.isFinite(n)) return { ...fallback, estimated: true };
-  return PEER_PREMIUM_BENCHMARKS.find((item) => n >= item.min && n <= item.max)
-    || (n < 20 ? { ...PEER_PREMIUM_BENCHMARKS[0], estimated: true } : { ...PEER_PREMIUM_BENCHMARKS[PEER_PREMIUM_BENCHMARKS.length - 1], estimated: true });
-};
-
 const getCoverageItems = (policy) => (
   Array.isArray(policy?.coverageItems)
     ? policy.coverageItems
@@ -116,6 +100,7 @@ const InsurancePlan = () => {
   const [policies, setPolicies] = useState([]);
   const [coverageComparisons, setCoverageComparisons] = useState([]);
   const [userAge, setUserAge] = useState(null);
+  const [peerPremium, setPeerPremium] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -129,13 +114,21 @@ const InsurancePlan = () => {
           insuranceAPI.getCoverageComparison(),
           healthAPI.getHealthAge().catch(() => null),
         ]);
+        const resolvedAge = healthAge?.chronologicalAge ?? healthAge?.age ?? null;
         setPolicies(Array.isArray(policyRows) ? policyRows : []);
         setCoverageComparisons(Array.isArray(comparisonRows) ? comparisonRows : []);
-        setUserAge(healthAge?.chronologicalAge ?? healthAge?.age ?? null);
+        setUserAge(resolvedAge);
+        try {
+          setPeerPremium(await insuranceAPI.getPeerPremiumBenchmark({ age: resolvedAge }));
+        } catch (benchmarkError) {
+          console.warn('Peer premium benchmark not available:', benchmarkError?.message);
+          setPeerPremium(null);
+        }
       } catch (err) {
         console.error('Failed to fetch insurance plan data:', err);
         setPolicies([]);
         setCoverageComparisons([]);
+        setPeerPremium(null);
         setError('보험 정보를 불러오지 못했습니다.');
       } finally {
         setLoading(false);
@@ -161,17 +154,28 @@ const InsurancePlan = () => {
   const monthlyPremium = activePolicies.reduce((sum, policy) => (
     sum + toNumber(policy.monthlyPremium ?? policy.monthly_premium)
   ), 0);
-  const peerPremium = getPeerPremiumBenchmark(userAge);
-  const peerDiff = monthlyPremium - peerPremium.average;
-  const peerPercent = peerPremium.average > 0 && monthlyPremium > 0
-    ? Math.round((monthlyPremium / peerPremium.average) * 100)
-    : 0;
+  const peerAverage = toNumber(peerPremium?.averageMonthlyPremium ?? peerPremium?.average_monthly_premium);
+  const peerDiff = toNumber(peerPremium?.difference);
+  const peerPercent = peerPremium?.percentage != null
+    ? Number(peerPremium.percentage)
+    : peerAverage > 0 && monthlyPremium > 0
+      ? Math.round((monthlyPremium / peerAverage) * 100)
+      : 0;
   const peerBarWidth = Math.min(peerPercent || 0, 135);
-  const peerStatus = monthlyPremium <= 0
+  const peerStatus = peerPremium?.status || (monthlyPremium <= 0 || peerAverage <= 0
     ? '확인 필요'
-    : peerDiff > 0
+    : monthlyPremium - peerAverage > 0
       ? '또래보다 높음'
-      : '또래보다 낮음';
+      : '또래보다 낮음');
+  const peerLabel = peerPremium?.ageGroupLabel || peerPremium?.age_group_label || '-';
+  const peerAgeLabel = userAge
+    ? `만 ${userAge}세 · ${peerLabel}`
+    : peerLabel !== '-' ? `${peerLabel} 기준` : '연령 정보 없음';
+  const peerStatusClass = peerStatus === '또래보다 높음'
+    ? 'mc-tag-warning'
+    : peerStatus === '또래보다 낮음'
+      ? 'mc-tag-success'
+      : 'mc-tag-neutral';
 
   return (
     <div className="mc-page fade-in">
@@ -216,21 +220,21 @@ const InsurancePlan = () => {
 
         <div className="mc-card mc-card-body mc-insurance-metric-card">
           <div className="mc-field-label">분석 대상 보장</div>
-          <div className="mc-stat-value" style={{ marginTop: 4 }}>
+          <div className="mc-stat-value">
             {coverageItems.length}건
           </div>
           <div className="mc-stat-sub">활성 보험 {activePolicies.length}건 기준</div>
         </div>
         <div className="mc-card mc-card-body mc-insurance-metric-card">
           <div className="mc-field-label">미확인 공백</div>
-          <div className="mc-stat-value" style={{ marginTop: 4 }}>
+          <div className="mc-stat-value">
             {missingCount}개
           </div>
           <div className="mc-stat-sub">통계 비교 항목 중 미확인</div>
         </div>
         <div className="mc-card mc-card-body mc-insurance-metric-card mc-insurance-premium-card">
           <div className="mc-field-label">월 보험료 합계</div>
-          <div className="mc-stat-value" style={{ marginTop: 4, color: 'var(--blue)' }}>
+          <div className="mc-stat-value mc-insurance-premium-value">
             {monthlyPremium > 0 ? formatWon(monthlyPremium) : '정보 없음'}
           </div>
           <div className="mc-stat-sub">일시납/보험료 미제공 계약은 합계에서 제외</div>
@@ -240,16 +244,16 @@ const InsurancePlan = () => {
             <div>
               <div className="mc-field-label">또래 평균 보험료</div>
               <div className="mc-peer-premium-age">
-                {userAge ? `만 ${userAge}세 · ${peerPremium.label}` : `${peerPremium.label} 기준`}
+                {peerAgeLabel}
               </div>
             </div>
-            <span className={`mc-tag ${peerDiff > 0 ? 'mc-tag-warning' : 'mc-tag-success'}`}>
+            <span className={`mc-tag ${peerStatusClass}`}>
               {peerStatus}
             </span>
           </div>
           <div className="mc-peer-premium-main">
-            <span>{formatWon(peerPremium.average)}</span>
-            {monthlyPremium > 0 && (
+            <span>{peerAverage > 0 ? formatWon(peerAverage) : '정보 없음'}</span>
+            {peerAverage > 0 && monthlyPremium > 0 && (
               <small>
                 내 보험료 {peerDiff >= 0 ? '+' : '-'}{formatWon(Math.abs(peerDiff))}
               </small>
@@ -258,9 +262,6 @@ const InsurancePlan = () => {
           <div className="mc-peer-premium-scale" aria-hidden="true">
             <div className="mc-peer-premium-fill" style={{ width: `${peerBarWidth}%` }} />
             <i style={{ left: '100%' }} />
-          </div>
-          <div className="mc-peer-premium-note">
-            연령대별 월평균 납입보험료 참고값입니다.
           </div>
         </div>
       </div>
