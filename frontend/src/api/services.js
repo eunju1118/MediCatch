@@ -1,4 +1,6 @@
 import api from './client';
+import { IS_DEMO_MODE } from '../config/demoMode';
+import { mockAPIs } from './mockServices';
 
 const withAliases = (row, aliases) => {
   if (!row || typeof row !== 'object') return row;
@@ -82,7 +84,7 @@ const withSyncRequestAliases = (data = {}) => ({
 });
 
 // ── Auth ──────────────────────────────────────────
-export const authAPI = {
+const realAuthAPI = {
   login:        (data) => api.post('/auth/login', data),
   signupStep1:  (data) => api.post('/auth/signup/step1', data),
   signupStep2:  (data) => api.post('/auth/signup/step2', data),
@@ -107,7 +109,7 @@ export const authAPI = {
 };
 
 // ── Health ────────────────────────────────────────
-export const healthAPI = {
+const realHealthAPI = {
   getMedicalRecords: (params) => api.get('/health/medical-records', { params })
     .then((rows) => Array.isArray(rows) ? rows.map(normalizeMedicalRecord) : rows),
   getMedications:    () => api.get('/health/medications'),
@@ -127,7 +129,7 @@ export const healthAPI = {
 };
 
 // ── Insurance ─────────────────────────────────────
-export const insuranceAPI = {
+const realInsuranceAPI = {
   getPolicies:   () => api.get('/insurance/policies')
     .then((rows) => Array.isArray(rows) ? rows.map(normalizePolicy) : rows),
   getCoverage:   (policyId) => api.get(`/insurance/policies/${policyId}/coverage`),
@@ -149,15 +151,21 @@ export const insuranceAPI = {
 };
 
 // ── Analysis ──────────────────────────────────────
-export const analysisAPI = {
+const realAnalysisAPI = {
   searchPreTreatment:  (data) => api.post('/analysis/pre-treatment-search', data),
   searchTreatment:     (keyword) => api.post('/analysis/pre-treatment-search', { query: keyword }),
   getCoverageGap:      () => api.get('/analysis/coverage-gaps'),
 };
 
 // ── Chat ──────────────────────────────────────────
-export const chatAPI = {
+const realChatAPI = {
   sendMessage: (message) => api.post('/chat/message', { message }),
   getHistory:  () => api.get('/chat/history'),
   clearHistory:() => api.delete('/chat/history'),
 };
+
+export const authAPI = IS_DEMO_MODE ? mockAPIs.authAPI : realAuthAPI;
+export const healthAPI = IS_DEMO_MODE ? mockAPIs.healthAPI : realHealthAPI;
+export const insuranceAPI = IS_DEMO_MODE ? mockAPIs.insuranceAPI : realInsuranceAPI;
+export const analysisAPI = IS_DEMO_MODE ? mockAPIs.analysisAPI : realAnalysisAPI;
+export const chatAPI = IS_DEMO_MODE ? mockAPIs.chatAPI : realChatAPI;
